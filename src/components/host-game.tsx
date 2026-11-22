@@ -1,0 +1,30 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Eye, Pause, Play, RotateCcw, Trophy, Users } from "lucide-react";
+import { AVATARS, AVATAR_COLORS, formatScore, QUESTION_TIME, type RoomSnapshot } from "@/lib/game";
+import { Particles } from "@/components/ui";
+
+export default function HostGame({ room, onCommand, onExit, busy }: { room: RoomSnapshot; onCommand: (action: string, data?: Record<string, unknown>) => Promise<void>; onExit: () => void; busy: boolean }) {
+  const [left, setLeft] = useState(QUESTION_TIME);
+  useEffect(() => {
+    const tick = () => setLeft(room.status === "playing" && room.startedAt ? Math.max(0, room.remainingSeconds - (Date.now() - new Date(room.startedAt).getTime()) / 1000) : room.remainingSeconds);
+    tick(); const interval = window.setInterval(tick, 100); return () => window.clearInterval(interval);
+  }, [room.status, room.startedAt, room.remainingSeconds]);
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if (event.repeat || (event.target as HTMLElement).matches("input,textarea,select,button")) return;
+      if (event.code === "Space" && !busy) { event.preventDefault(); if (room.status === "playing") void onCommand("reveal"); else if (room.status === "revealed") void onCommand("next"); }
+      if (event.key.toLowerCase() === "p" && !busy) { if (room.status === "playing") void onCommand("pause"); else if (room.status === "paused") void onCommand("resume"); }
+    };
+    window.addEventListener("keydown", listener); return () => window.removeEventListener("keydown", listener);
+  }, [room.status, onCommand, busy]);
+  if (room.status === "finished") {
+    const ranking = [...room.players].sort((a, b) => b.score - a.score);
+    return <section className="game-stage finished-stage"><Particles seed={100} /><div className="trophy-orbit"><Trophy size={56} strokeWidth={1.5} /></div><span className="eyebrow lime">LE VERDICT EST TOMBÉ</span><h2>{ranking[0]?.name || "Tout le monde"}, quelle légende !</h2><p className="muted">Une belle victoire. Et quelques egos à réparer.</p><div className="podium">{ranking.slice(0, 3).map((p, i) => <div key={p.id} className={`podium-person place-${i}`}><span className="player-avatar" style={{ background: AVATAR_COLORS[p.avatar] }}>{AVATARS[p.avatar]}</span><strong>{p.name}</strong><span className="lime">{formatScore(p.score)} pts</span><div className="podium-base">{i + 1}</div></div>)}</div><div className="finished-actions"><button className="button button-primary" disabled={busy} onClick={() => void onCommand("start", { packId: room.packId })}><RotateCcw size={17} /> La revanche</button><button className="button button-ghost" disabled={busy} onClick={() => void onCommand("reset")}>Retour au salon <ArrowRight size={17} /></button></div></section>;
+  }
+  const question = room.question;
+  if (!question) return null;
+  const revealed = room.status === "revealed";
+  return <section className="game-stage host-stage"><div className="game-topline"><button className="icon-button" onClick={onExit} aria-label="Retour au plateau"><ArrowLeft size={18} /></button><span className="eyebrow">EN DIRECT <span className="tiny-dot" /> {room.packTitle}</span><span className="pill pill-purple">MAÎTRE DU JEU</span></div><div className="game-progress">{Array.from({ length: room.totalQuestions }, (_, i) => <span key={i} className={i < room.questionIndex ? "done" : i === room.questionIndex ? "current" : ""} />)}</div><div className="question-meta"><span>QUESTION <strong>{String(room.questionIndex + 1).padStart(2, "0")}</strong> / {String(room.totalQuestions).padStart(2, "0")}</span><span className="response-count"><Users size={16} /> {room.answerCount}/{room.players.length} réponses</span></div><div className="question-category"><span className="category-pill">{question.category}</span><div className={`timer ${left < 6 ? "timer-urgent" : ""}`}><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" className="timer-track" /><circle cx="30" cy="30" r="26" className="timer-value" style={{ strokeDashoffset: 163.36 * (1 - left / QUESTION_TIME) }} /></svg><strong>{Math.ceil(left)}</strong></div></div><h2 className="question-title" key={question.id}>{question.prompt}</h2>{question.mediaUrl && (question.mediaType === "audio" ? <audio src={question.mediaUrl} controls className="question-audio" /> : <img src={question.mediaUrl} className="question-image" alt="Illustration de la question" />)}<div className="answer-grid">{question.options.map((option, i) => <div key={i} className={`answer-option host-answer ${revealed && i === question.correct ? "is-correct" : ""}`}><span className="answer-letter">{String.fromCharCode(65 + i)}</span><span>{option}</span>{revealed && i === question.correct && <Check size={20} />}</div>)}</div><div className="game-bottom">{revealed ? <><div className="answer-feedback correct-feedback"><strong>C’était bien {question.options[question.correct ?? 0]} !</strong><p>{question.explanation}</p></div><button className="button button-primary" disabled={busy} onClick={() => void onCommand("next")}>{room.questionIndex === room.totalQuestions - 1 ? "Le grand classement" : "Question suivante"}<ArrowRight size={17} /></button></> : <><div className="host-controls"><button className="button button-primary" disabled={busy} onClick={() => void onCommand("reveal")}><Eye size={17} /> Révéler la réponse</button><button className="button button-ghost" disabled={busy} onClick={() => void onCommand("pause")}><Pause size={17} /> Pause</button></div><span className="keyboard-hint">Vous gardez la main. <kbd>Espace</kbd> pour révéler.</span></>}</div>{room.status === "paused" && <div className="pause-overlay"><div className="pause-icon"><Pause size={35} /></div><span className="eyebrow">INTERLUDE</span><h2>Le plateau est en pause.</h2><p>Les joueurs vous attendent. Prenez votre temps.</p><button className="button button-primary" disabled={busy} onClick={() => void onCommand("resume")}><Play size={17} /> Reprendre la partie</button></div>}</section>;
+}
