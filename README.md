@@ -1,4 +1,4 @@
-# Random Quizz
+# Random Quiz
 
 Jeu de quiz de soirée façon Jackbox : l'hôte ouvre un salon, les amis le rejoignent depuis leur téléphone (code ou QR code). Mode solo, quiz personnalisés, boutique de bonus et classement inclus.
 
