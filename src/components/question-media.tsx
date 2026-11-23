@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Disc3, ImageOff, LoaderCircle, Play, RotateCcw, Video } from "lucide-react";
+import { Disc3, Headphones, ImageOff, LoaderCircle, Maximize2, Play, RotateCcw, Video, X } from "lucide-react";
 import { clipKey, createClipDriver, type ClipDriver, type ClipState } from "@/lib/clip-driver";
 import { clipSource, formatTime, type Question, type QuestionMedia } from "@/lib/game";
 
@@ -28,7 +28,7 @@ function ClipLayer({ media, current, play, token, onState }: { media: QuestionMe
 /**
  * Média d'une question.
  * - « stage » (écran de l'hôte, solo, éditeur) : photo, vidéo ou musique lues ici, préchargées à l'avance.
- * - « viewer » (téléphone des joueurs) : photo affichée ; vidéo et musique se suivent sur l'écran de l'hôte.
+ * - « viewer » (téléphone des joueurs) : photo affichée (touchez pour l’agrandir) ; vidéo et musique se lancent sur le téléphone avec un bouton.
  * Les vidéos sont lues sans commandes, sans titre ni cliquables : seule l'image est visible.
  */
 export default function QuestionMedia({ question, mode, autoplay, runKey, upcoming }: { question: MediaSource; mode: "stage" | "viewer"; autoplay: boolean; runKey: string; upcoming?: QuestionMedia | null }) {
@@ -36,22 +36,31 @@ export default function QuestionMedia({ question, mode, autoplay, runKey, upcomi
   const [manual, setManual] = useState(false);
   const [token, setToken] = useState(0);
   const [broken, setBroken] = useState(false);
+  const [onPhone, setOnPhone] = useState(false);
+  const [zoom, setZoom] = useState(false);
   const [states, setStates] = useState<Record<string, ClipState>>({});
-  useEffect(() => { setManual(false); setBroken(false); }, [runKey]);
+  useEffect(() => { setManual(false); setBroken(false); setOnPhone(false); setZoom(false); }, [runKey]);
 
   if (!media) {
     if (!question.mediaUrl) return null;
     return question.mediaType === "audio"
-      ? (mode === "stage" ? <audio src={question.mediaUrl} controls className="question-audio" /> : null)
+      ? <audio src={question.mediaUrl} controls className="question-audio" />
       : <img src={question.mediaUrl} className="question-image" alt="Illustration de la question" />;
   }
   if (media.kind === "photo") {
     if (broken) return <div className="media-card media-card-error"><ImageOff size={18} /><span>Image introuvable</span></div>;
-    return <img src={media.url} className="question-image" alt="Illustration de la question" referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
+    const image = <img src={media.url} className="question-image" alt="Illustration de la question" referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
+    if (mode !== "viewer") return image;
+    return <>
+      <button type="button" className="question-image-button" onClick={() => setZoom(true)} aria-label="Agrandir l’image">{image}<span className="question-image-zoom"><Maximize2 size={15} />Agrandir</span></button>
+      {zoom && <div className="image-lightbox" role="dialog" aria-label="Image agrandie" onClick={() => setZoom(false)}><img src={media.url} alt="Illustration de la question, agrandie" referrerPolicy="no-referrer" /><button type="button" className="icon-button" aria-label="Fermer l’image" onClick={() => setZoom(false)}><X size={22} /></button></div>}
+    </>;
   }
   const isMusic = media.kind === "music";
   if (mode === "viewer") {
-    return <div className="media-card">{isMusic ? <Disc3 size={20} /> : <Video size={20} />}<span>{isMusic ? "Musique : écoutez l’écran de l’hôte" : "Vidéo : regardez l’écran de l’hôte"}</span></div>;
+    if (!isClip(media)) return <div className="media-card media-card-error"><ImageOff size={18} /><span>Média indisponible sur le téléphone</span></div>;
+    if (onPhone) return <QuestionMedia question={question} mode="stage" autoplay runKey={runKey} />;
+    return <div className="media-card media-card-viewer">{isMusic ? <Disc3 size={20} /> : <Video size={20} />}<span>{isMusic ? "Extrait musical" : "Vidéo"}</span><button type="button" className="button button-soft media-replay" onClick={() => setOnPhone(true)}>{isMusic ? <Headphones size={15} /> : <Play size={15} />}{isMusic ? "Écouter sur mon téléphone" : "Voir sur mon téléphone"}</button></div>;
   }
   if (!isClip(media)) return <div className="media-card media-card-error"><ImageOff size={18} /><span>Lien invalide (YouTube ou fichier direct)</span></div>;
 

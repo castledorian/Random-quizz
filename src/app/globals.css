@@ -252,3 +252,15 @@ input[type=checkbox]{width:24px;height:24px;accent-color:var(--lime)}
 .theme-card-meta,.theme-index{color:#f3ecfa!important}
 :focus-visible{outline-width:3px}
 @media(forced-colors:active){.button,.nav-item,.toggle{border:1px solid ButtonText}}
+
+/* Médias sur le téléphone des joueurs */
+.media-card-viewer{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.media-card-viewer>span{flex:1;min-width:90px}.media-card-viewer .media-replay{margin-left:auto;min-height:44px}
+.player-question .media-stage{width:100%}.player-question .clip-frame{width:100%}
+.question-image-button{position:relative;display:block;width:100%;padding:0;border:0;background:none;border-radius:12px;overflow:hidden}.question-image-zoom{position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#0f0b1acc;color:#f4effa;font-size:13px}
+.image-lightbox{position:fixed;inset:0;z-index:200;background:#07050df2;display:flex;align-items:center;justify-content:center;padding:16px}.image-lightbox>img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}.image-lightbox>.icon-button{position:absolute;top:12px;right:12px;background:#ffffff1f;color:#fff;border-radius:50%;min-width:44px;min-height:44px}
+
+/* Médias sur le téléphone des joueurs */
+.media-card-viewer{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.media-card-viewer>span{flex:1;min-width:90px}.media-card-viewer .media-replay{margin-left:auto;min-height:44px}
+.player-question .media-stage{width:100%}.player-question .clip-frame{width:100%}
+.question-image-button{position:relative;display:block;width:100%;padding:0;border:0;background:none;border-radius:12px;overflow:hidden}.question-image-zoom{position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#0f0b1acc;color:#f4effa;font-size:13px}
+.image-lightbox{position:fixed;inset:0;z-index:200;background:#07050df2;display:flex;align-items:center;justify-content:center;padding:16px}.image-lightbox>img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}.image-lightbox>.icon-button{position:absolute;top:12px;right:12px;background:#ffffff1f;color:#fff;border-radius:50%;min-width:44px;min-height:44px}
