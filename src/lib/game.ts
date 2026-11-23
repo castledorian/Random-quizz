@@ -12,9 +12,12 @@ export type Question = {
   mediaType?: "image" | "audio";
   /** Média par lien : photo/GIF, vidéo ou musique YouTube (avec début et fin). */
   media?: QuestionMedia;
+  /** Chrono en secondes : 0 = sans limite de temps, absent = 20 s. */
+  time?: number;
 };
 
-export type QuestionMedia = { kind: "photo" | "video" | "music"; url: string; start?: number; end?: number };
+export type QuestionMedia = { kind: "photo" | "video" | "music"; url: string; start?: number; end?: number; /** Fondu sonore au début et à la fin (activé par défaut). */ fade?: boolean };
+export type ClipSource = { type: "youtube"; id: string } | { type: "file"; url: string };
 export const MAX_PLAYERS = 24;
 
 export type QuizPack = {
@@ -76,6 +79,10 @@ export type RoomSnapshot = {
   question: (Omit<Question, "correct" | "explanation"> & { correct?: number; explanation?: string }) | null;
   startedAt: string | null; remainingSeconds: number; players: RoomPlayer[]; answerCount: number;
   shopEnabled: boolean; votingEnabled: boolean; eliminated: number[];
+  /** Durée de la question en secondes (0 = sans limite). */
+  timeLimit: number;
+  /** Média de la question suivante, réservé à l’hôte : permet de le précharger. */
+  upcomingMedia?: QuestionMedia | null;
 };
 export type HostSession = { code: string; hostToken: string };
 export type PlayerSession = { code: string; playerToken: string; playerId: string; profileId: string; name: string; avatar: number };
@@ -99,6 +106,16 @@ export function youtubeId(url: string): string | null {
     return id && /^[\w-]{11}$/.test(id) ? id : null;
   } catch { return null; }
 }
+/** Reconnaît un lien YouTube ou un lien direct vers un fichier vidéo/audio. */
+export function clipSource(url: string): ClipSource | null {
+  const id = youtubeId(url);
+  if (id) return { type: "youtube", id };
+  try {
+    const u = new URL(url.trim());
+    if (/^https?:$/.test(u.protocol) && /\.(mp4|webm|mov|m4v|ogv|mp3|m4a|aac|ogg|oga|wav|flac|opus)$/i.test(u.pathname)) return { type: "file", url: u.href };
+  } catch { /* Lien invalide. */ }
+  return null;
+}
 /** « 1:23 », « 83 », « 1h2m3s » → secondes. Renvoie null si vide ou invalide. */
 export function parseTime(text: string): number | null {
   const t = text.trim().toLowerCase();
@@ -117,11 +134,12 @@ export function formatTime(seconds?: number): string {
 }
 export function validMedia(m: unknown): m is QuestionMedia {
   if (!m || typeof m !== "object") return false;
-  const { kind, url, start, end } = m as Record<string, unknown>;
+  const { kind, url, start, end, fade } = m as Record<string, unknown>;
+  if (fade !== undefined && typeof fade !== "boolean") return false;
   if (kind !== "photo" && kind !== "video" && kind !== "music") return false;
   if (typeof url !== "string" || url.length > 1000 || !/^https?:\/\//i.test(url.trim())) return false;
   if (kind !== "photo") {
-    if (!youtubeId(url)) return false;
+    if (!clipSource(url)) return false;
     const ok = (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 86400);
     if (!ok(start) || !ok(end)) return false;
     if (typeof start === "number" && typeof end === "number" && end <= start) return false;
@@ -135,7 +153,9 @@ export function validateQuestions(value: unknown): value is Question[] {
     Array.isArray(q.options) && q.options.length === 4 && q.options.every((o: unknown) => typeof o === "string" && o.trim().length > 0 && o.length <= 180) &&
     Number.isInteger(q.correct) && q.correct >= 0 && q.correct <= 3 && typeof q.explanation === "string" && typeof q.category === "string" &&
     (q.media === undefined || validMedia(q.media)) &&
+    (q.time === undefined || (Number.isInteger(q.time) && q.time >= 0 && q.time <= 600)) &&
     (!q.mediaUrl || (typeof q.mediaUrl === "string" && q.mediaUrl.length <= 4000000 && /^data:(image\/(png|jpeg|webp|gif)|audio\/(mpeg|mp3|wav|ogg|x-wav));base64,/.test(q.mediaUrl)))
   );
 }
+export const questionTime = (q?: Pick<Question, "time">) => q?.time === undefined ? QUESTION_TIME : q.time;
 export function formatScore(score: number) { return new Intl.NumberFormat("fr-FR").format(score); }

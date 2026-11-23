@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Coins, Flame, Pause, Play, RotateCcw, ShoppingBag, Sparkles, Trophy, X, Zap } from "lucide-react";
-import { formatScore, QUESTION_TIME, SHOP_ITEMS, type HighScore, type QuizPack } from "@/lib/game";
+import { formatScore, QUESTION_TIME, questionTime, SHOP_ITEMS, type HighScore, type QuizPack } from "@/lib/game";
 import { api, playSound, readHighScores, saveHighScore } from "@/lib/client";
 import { BonusShop, Modal, Particles } from "@/components/ui";
 import QuestionMedia from "@/components/question-media";
@@ -29,15 +29,16 @@ export default function SoloGame({ pack, name, sound, onExit, onFinish, starting
   const locked = useRef(false);
   const saved = useRef(false);
   const question = pack.questions[index];
+  const limit = questionTime(question);
   const isRight = selected === question.correct;
 
   const answer = useCallback((choice: number) => {
     if (phase !== "playing" || locked.current) return;
     if (hint && question.options.map((_, i) => i).filter(i => i !== question.correct).slice(0, 2).includes(choice)) return;
     locked.current = true;
-    const remaining = Math.max(0, QUESTION_TIME - (Date.now() - start.current) / 1000);
+    const remaining = limit > 0 ? Math.max(0, limit - (Date.now() - start.current) / 1000) : 0;
     const right = choice === question.correct;
-    const points = right ? Math.round((500 + remaining / QUESTION_TIME * 500 + Math.min(streak, 3) * 100) * (double ? 2 : 1)) : shield ? 150 : 0;
+    const points = right ? Math.round((500 + (limit > 0 ? remaining / limit : 0.5) * 500 + Math.min(streak, 3) * 100) * (double ? 2 : 1)) : shield ? 150 : 0;
     setSelected(choice); setAwarded(points); setScore(s => s + points); setCoins(c => c + (right ? 80 : 10));
     setStreak(s => right ? s + 1 : 0); setCorrectCount(c => c + (right ? 1 : 0)); setDouble(false);
     if (!right) setShield(false);
@@ -45,17 +46,17 @@ export default function SoloGame({ pack, name, sound, onExit, onFinish, starting
     if (right) setBurst(b => b + 1);
     if (sound) playSound(right ? "correct" : "wrong");
     try { navigator.vibrate?.(right ? [15, 30, 15] : 60); } catch { /* Optional haptics. */ }
-  }, [phase, question, streak, double, shield, sound, hint]);
+  }, [phase, question, limit, streak, double, shield, sound, hint]);
 
   useEffect(() => {
-    if (phase !== "playing") return;
+    if (phase !== "playing" || limit <= 0) return;
     const timer = window.setInterval(() => {
-      const left = Math.max(0, QUESTION_TIME - (Date.now() - start.current) / 1000);
+      const left = Math.max(0, limit - (Date.now() - start.current) / 1000);
       setTimeLeft(left);
       if (left <= 0) answer(-1);
     }, 80);
     return () => window.clearInterval(timer);
-  }, [phase, answer]);
+  }, [phase, answer, limit]);
 
   const next = useCallback(() => {
     if (index === pack.questions.length - 1) { setPhase("finished"); if (sound) playSound("finish"); return; }
@@ -64,8 +65,8 @@ export default function SoloGame({ pack, name, sound, onExit, onFinish, starting
   }, [index, pack.questions.length, sound]);
 
   const pause = useCallback(() => {
-    if (phase === "playing") { pausedRemaining.current = Math.max(0, QUESTION_TIME - (Date.now() - start.current) / 1000); setPhase("paused"); }
-    else if (phase === "paused") { start.current = Date.now() - (QUESTION_TIME - pausedRemaining.current) * 1000; setPhase("playing"); }
+    if (phase === "playing") { pausedRemaining.current = Math.max(0, limit - (Date.now() - start.current) / 1000); setPhase("paused"); }
+    else if (phase === "paused") { start.current = Date.now() - (limit - pausedRemaining.current) * 1000; setPhase("playing"); }
   }, [phase]);
 
   const restart = useCallback(() => {
@@ -115,9 +116,9 @@ export default function SoloGame({ pack, name, sound, onExit, onFinish, starting
     <div className="game-topline"><button className="icon-button" onClick={onExit} aria-label="Quitter la partie"><ArrowLeft size={18} /></button><span className="eyebrow">SOLO <span className="tiny-dot" /> {pack.title}</span><div className="game-top-actions"><button className="coin-balance" disabled={!shopEnabled} title={shopEnabled ? "Ouvrir la boutique" : "La boutique a été désactivée dans les règles du salon"} onClick={() => { setShopMessage(""); setShopOpen(true); }} aria-label="Ouvrir la boutique"><Coins size={16} />{coins}<ShoppingBag size={14} /></button><button className="icon-button" onClick={pause} disabled={phase === "feedback"} aria-label="Mettre en pause"><Pause size={18} /></button></div></div>
     <div className="game-progress">{pack.questions.map((_, i) => <span key={i} className={i < index ? "done" : i === index ? "current" : ""} />)}</div>
     <div className="question-meta"><span>QUESTION <strong>{String(index + 1).padStart(2, "0")}</strong> / {String(pack.questions.length).padStart(2, "0")}</span><span className="live-score"><Zap size={16} />{formatScore(score)} <small>pts</small></span></div>
-    <div className="question-category"><span className="category-pill">{question.category}</span>{streak >= 2 && <span className="streak"><Flame size={14} /> {streak} à la suite !</span>}<div className={`timer ${timeLeft < 6 ? "timer-urgent" : ""}`} aria-label={`${Math.ceil(timeLeft)} secondes restantes`}><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" className="timer-track" /><circle cx="30" cy="30" r="26" className="timer-value" style={{ strokeDashoffset: 163.36 * (1 - timeLeft / QUESTION_TIME) }} /></svg><strong>{Math.ceil(timeLeft)}</strong></div></div>
+    <div className="question-category"><span className="category-pill">{question.category}</span>{streak >= 2 && <span className="streak"><Flame size={14} /> {streak} à la suite !</span>}{limit > 0 ? <div className={`timer ${timeLeft < 6 ? "timer-urgent" : ""}`} aria-label={`${Math.ceil(timeLeft)} secondes restantes`}><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" className="timer-track" /><circle cx="30" cy="30" r="26" className="timer-value" style={{ strokeDashoffset: 163.36 * (1 - timeLeft / limit) }} /></svg><strong>{Math.ceil(timeLeft)}</strong></div> : <div className="timer timer-none" aria-label="Sans limite de temps"><strong>∞</strong></div>}</div>
     <h2 className="question-title" key={question.id}>{question.prompt}</h2>
-    <QuestionMedia question={question} mode="stage" autoplay={phase === "playing"} runKey={`${question.id}-${index}`} />
+    <QuestionMedia question={question} upcoming={pack.questions[index + 1]?.media} mode="stage" autoplay={phase === "playing" || phase === "feedback"} runKey={`${question.id}-${index}`} />
     <div className="answer-grid">{question.options.map((option, i) => {
       const eliminated = hint && i !== question.correct && question.options.map((_, n) => n).filter(n => n !== question.correct).slice(0, 2).includes(i);
       return <button key={`${index}-${i}`} className={`answer-option ${phase === "feedback" && i === question.correct ? "is-correct" : ""} ${phase === "feedback" && selected === i && !isRight ? "is-wrong" : ""} ${eliminated && phase !== "feedback" ? "is-eliminated" : ""}`} disabled={phase !== "playing" || eliminated} onClick={() => answer(i)}><span className="answer-letter">{String.fromCharCode(65 + i)}</span><span>{option}</span><span className="answer-indicator">{phase === "feedback" && i === question.correct ? <Check size={20} /> : phase === "feedback" && selected === i ? <X size={20} /> : <kbd>{i + 1}</kbd>}</span></button>;

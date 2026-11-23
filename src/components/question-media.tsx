@@ -1,22 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Disc3, ImageOff, Play, RotateCcw, Video } from "lucide-react";
-import { formatTime, youtubeId, type Question } from "@/lib/game";
+import { useEffect, useRef, useState } from "react";
+import { Disc3, ImageOff, LoaderCircle, Play, RotateCcw, Video } from "lucide-react";
+import { clipKey, createClipDriver, type ClipDriver, type ClipState } from "@/lib/clip-driver";
+import { clipSource, formatTime, type Question, type QuestionMedia } from "@/lib/game";
 
 type MediaSource = Pick<Question, "media" | "mediaUrl" | "mediaType">;
+const isClip = (m?: QuestionMedia | null): m is QuestionMedia => !!m && m.kind !== "photo" && !!clipSource(m.url);
+
+function ClipLayer({ media, current, play, token, onState }: { media: QuestionMedia; current: boolean; play: boolean; token: number; onState: (state: ClipState) => void }) {
+  const host = useRef<HTMLDivElement>(null);
+  const driver = useRef<ClipDriver | null>(null);
+  const report = useRef(onState);
+  report.current = onState;
+  const key = clipKey(media);
+  useEffect(() => {
+    const created = host.current ? createClipDriver(host.current, media, { onState: state => report.current(state) }) : null;
+    if (!created) report.current("error");
+    driver.current = created;
+    return () => { created?.destroy(); driver.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  useEffect(() => { if (current && play) driver.current?.start(); else driver.current?.stop(); }, [current, play, token]);
+  return <div ref={host} className={`clip-layer ${current ? "is-current" : ""}`} aria-hidden="true" />;
+}
 
 /**
- * Affiche le média d'une question.
- * - "stage" (écran de l'hôte, solo, aperçu de l'éditeur) : photo, vidéo ou musique jouées ici.
- * - "viewer" (téléphone des joueurs) : photo affichée ; vidéo et musique se suivent sur l'écran de l'hôte.
+ * Média d'une question.
+ * - « stage » (écran de l'hôte, solo, éditeur) : photo, vidéo ou musique lues ici, préchargées à l'avance.
+ * - « viewer » (téléphone des joueurs) : photo affichée ; vidéo et musique se suivent sur l'écran de l'hôte.
+ * Les vidéos sont lues sans commandes, sans titre ni cliquables : seule l'image est visible.
  */
-export default function QuestionMedia({ question, mode, autoplay, runKey }: { question: MediaSource; mode: "stage" | "viewer"; autoplay: boolean; runKey: string }) {
+export default function QuestionMedia({ question, mode, autoplay, runKey, upcoming }: { question: MediaSource; mode: "stage" | "viewer"; autoplay: boolean; runKey: string; upcoming?: QuestionMedia | null }) {
   const media = question.media;
-  const [playing, setPlaying] = useState(autoplay);
-  const [nonce, setNonce] = useState(0);
+  const [manual, setManual] = useState(false);
+  const [token, setToken] = useState(0);
   const [broken, setBroken] = useState(false);
-  useEffect(() => { setPlaying(autoplay); setNonce(n => n + 1); setBroken(false); }, [runKey, autoplay]);
+  const [states, setStates] = useState<Record<string, ClipState>>({});
+  useEffect(() => { setManual(false); setBroken(false); }, [runKey]);
 
   if (!media) {
     if (!question.mediaUrl) return null;
@@ -32,19 +53,26 @@ export default function QuestionMedia({ question, mode, autoplay, runKey }: { qu
   if (mode === "viewer") {
     return <div className="media-card">{isMusic ? <Disc3 size={20} /> : <Video size={20} />}<span>{isMusic ? "Musique : écoutez l’écran de l’hôte" : "Vidéo : regardez l’écran de l’hôte"}</span></div>;
   }
-  const id = youtubeId(media.url);
-  if (!id) return <div className="media-card media-card-error"><ImageOff size={18} /><span>Lien YouTube invalide</span></div>;
-  const params = new URLSearchParams({ autoplay: "1", controls: isMusic ? "0" : "1", rel: "0", modestbranding: "1", playsinline: "1", iv_load_policy: "3", fs: "0" });
-  if (media.start) params.set("start", String(media.start));
-  if (media.end) params.set("end", String(media.end));
-  const src = `https://www.youtube-nocookie.com/embed/${id}?${params}`;
+  if (!isClip(media)) return <div className="media-card media-card-error"><ImageOff size={18} /><span>Lien invalide (YouTube ou fichier direct)</span></div>;
+
+  const play = autoplay || manual;
+  const currentKey = clipKey(media);
+  const layers = [{ media, current: true }, ...(isClip(upcoming) && clipKey(upcoming) !== currentKey ? [{ media: upcoming, current: false }] : [])]
+    .sort((a, b) => clipKey(a.media).localeCompare(clipKey(b.media)));
+  const state = states[currentKey] ?? "loading";
   const length = media.end !== undefined ? media.end - (media.start ?? 0) : undefined;
+  const busy = state === "loading";
+  const canStart = !busy && state !== "error" && (state !== "playing");
+  const replay = () => { setManual(true); setToken(t => t + 1); };
+  const layerNodes = layers.map(l => <ClipLayer key={clipKey(l.media)} media={l.media} current={l.current} play={play} token={token} onState={s => setStates(all => all[clipKey(l.media)] === s ? all : { ...all, [clipKey(l.media)]: s })} />);
+
   return <div className={`media-stage ${isMusic ? "media-stage-music" : "media-stage-video"}`}>
-    {playing && <iframe key={nonce} className={isMusic ? "media-audio-frame" : "question-video"} src={src} title={isMusic ? "Extrait musical" : "Extrait vidéo"} allow="autoplay; encrypted-media; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" />}
-    {(isMusic || !playing) && <div className="media-card media-card-stage">
-      {isMusic ? <span className={`media-eq ${playing ? "on" : ""}`}><i /><i /><i /><i /></span> : <Video size={20} />}
-      <span>{isMusic ? "Extrait musical" : "Extrait vidéo"}{length ? ` · ${formatTime(length)}` : ""}</span>
-      <button type="button" className="button button-soft media-replay" onClick={() => { setPlaying(true); setNonce(n => n + 1); }}>{playing ? <RotateCcw size={14} /> : <Play size={14} />}{playing ? "Rejouer" : "Lancer"}</button>
+    {isMusic ? <div className="clip-hidden">{layerNodes}</div> : <div className="clip-frame">{layerNodes}{state !== "playing" && state !== "ended" && <div className="clip-poster">{state === "error" ? <><ImageOff size={26} /><span>Vidéo indisponible</span></> : busy ? <><LoaderCircle size={26} className="spin" /><span>Chargement…</span></> : <button type="button" onClick={replay}><Play size={26} /><span>Lancer la vidéo</span></button>}</div>}</div>}
+    {(isMusic || state === "error") && <div className={`media-card media-card-stage ${state === "error" ? "media-card-error" : ""}`}>
+      {isMusic ? <span className={`media-eq ${state === "playing" ? "on" : ""}`}><i /><i /><i /><i /></span> : <Video size={20} />}
+      <span>{state === "error" ? "Lecture impossible (vidéo non autorisée ou lien invalide)" : busy ? "Chargement de l’extrait…" : `Extrait musical${length ? ` · ${formatTime(length)}` : ""}`}</span>
+      {isMusic && state !== "error" && <button type="button" className="button button-soft media-replay" disabled={busy} onClick={replay}>{busy ? <LoaderCircle size={14} className="spin" /> : canStart ? (state === "ended" || manual ? <RotateCcw size={14} /> : <Play size={14} />) : <RotateCcw size={14} />}{busy ? "Chargement" : state === "playing" || state === "ended" ? "Rejouer" : "Lancer"}</button>}
     </div>}
+    {!isMusic && state === "ended" && <button type="button" className="button button-soft media-replay media-replay-video" onClick={replay}><RotateCcw size={14} /> Rejouer</button>}
   </div>;
 }

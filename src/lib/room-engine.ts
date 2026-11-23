@@ -1,4 +1,4 @@
-import { ALL_PACKS, MAX_PLAYERS, QUESTION_TIME, SHOP_ITEMS, type Question, type QuizPack, type RoomSnapshot, type RoomStatus } from "@/lib/game";
+import { ALL_PACKS, MAX_PLAYERS, QUESTION_TIME, questionTime, SHOP_ITEMS, type Question, type QuizPack, type RoomSnapshot, type RoomStatus } from "@/lib/game";
 import { ApiError } from "@/lib/api-error";
 import { readCustomPacks } from "@/lib/local-store";
 
@@ -52,6 +52,8 @@ export function roomSnapshot(room: RoomState, hostToken?: string | null, playerT
     })),
     answerCount: room.players.filter(p => answered.has(key(p.id))).length,
     shopEnabled: room.shopEnabled, votingEnabled: room.votingEnabled,
+    timeLimit: question ? questionTime(question) : QUESTION_TIME,
+    ...(room.hostToken === hostToken ? { upcomingMedia: room.questions[room.questionIndex + 1]?.media ?? null } : {}),
     eliminated: me?.hint && question ? question.options.map((_, i) => i).filter(i => i !== question.correct).slice(0, 2) : [],
   };
 }
@@ -98,11 +100,12 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     if (!pack) throw new ApiError("Ce quiz n’existe plus.");
     room.answered = [];
     room.players.forEach(p => { p.score = 0; p.coins = 150; p.doubleNext = false; p.shield = false; p.hint = false; });
-    Object.assign(room, { status: "playing", packId: pack.id, packTitle: pack.title, questions: pack.questions, questionIndex: 0, remainingSeconds: QUESTION_TIME, questionStartedAt: now });
+    Object.assign(room, { status: "playing", packId: pack.id, packTitle: pack.title, questions: pack.questions, questionIndex: 0, remainingSeconds: questionTime(pack.questions[0]), questionStartedAt: now });
   } else if (action === "pause") {
     if (room.status !== "playing") throw new ApiError("La partie n’est pas en cours.");
     const elapsed = room.questionStartedAt ? (now - room.questionStartedAt) / 1000 : 0;
-    Object.assign(room, { status: "paused", remainingSeconds: Math.max(1, Math.ceil(room.remainingSeconds - elapsed)), questionStartedAt: null });
+    const timed = questionTime(room.questions[room.questionIndex]) > 0;
+    Object.assign(room, { status: "paused", remainingSeconds: timed ? Math.max(1, Math.ceil(room.remainingSeconds - elapsed)) : 0, questionStartedAt: null });
   } else if (action === "resume") {
     if (room.status !== "paused") throw new ApiError("La partie n’est pas en pause.");
     Object.assign(room, { status: "playing", questionStartedAt: now });
@@ -116,7 +119,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
       Object.assign(room, { status: "finished", questionStartedAt: null });
     } else {
       room.players.forEach(p => { p.hint = false; });
-      Object.assign(room, { status: "playing", questionIndex: room.questionIndex + 1, questionStartedAt: now, remainingSeconds: QUESTION_TIME });
+      Object.assign(room, { status: "playing", questionIndex: room.questionIndex + 1, questionStartedAt: now, remainingSeconds: questionTime(room.questions[room.questionIndex + 1]) });
     }
   } else if (action === "reset") {
     Object.assign(room, { status: "lobby", questionIndex: 0, questionStartedAt: null, remainingSeconds: QUESTION_TIME });
@@ -152,14 +155,15 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
       player.coins -= item.price; player[field] = true;
     } else {
       if (room.status !== "playing" || !room.questionStartedAt) throw new ApiError("Attendez la prochaine question.");
-      const remaining = room.remainingSeconds - (now - room.questionStartedAt) / 1000;
-      if (remaining <= 0) throw new ApiError("Trop tard, le temps est écoulé !");
       const question = room.questions[room.questionIndex];
+      const limit = questionTime(question);
+      const remaining = room.remainingSeconds - (now - room.questionStartedAt) / 1000;
+      if (limit > 0 && remaining <= 0) throw new ApiError("Trop tard, le temps est écoulé !");
       const answerIndex = body.answerIndex;
       if (typeof answerIndex !== "number" || !Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex > 3) throw new ApiError("Réponse invalide.");
       if (room.answered.includes(answerKey)) throw new ApiError("Votre réponse est déjà enregistrée.");
       const right = answerIndex === question.correct;
-      const points = right ? Math.round((500 + Math.min(1, remaining / QUESTION_TIME) * 500) * (player.doubleNext ? 2 : 1)) : player.shield ? 150 : 0;
+      const points = right ? Math.round((500 + (limit > 0 ? Math.min(1, remaining / limit) : 0.5) * 500) * (player.doubleNext ? 2 : 1)) : player.shield ? 150 : 0;
       room.answered.push(answerKey);
       player.score += points; player.coins += right ? 80 : 10; player.doubleNext = false;
       if (!right) player.shield = false;
