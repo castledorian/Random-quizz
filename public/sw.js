@@ -1,7 +1,7 @@
 /* Random Quizz — fonctionnement hors connexion et mises à jour automatiques.
    Pages : réseau d'abord (toujours la dernière version), cache si hors ligne.
    Fichiers du site : cache immédiat, rafraîchi en arrière-plan. */
-const CACHE = "random-quizz-v1";
+const CACHE = "random-quizz-v2";
 const CORE = ["./", "./join/", "./manifest.webmanifest", "./icons/icon-192.png"];
 
 self.addEventListener("install", event => {

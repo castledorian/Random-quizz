@@ -34,5 +34,5 @@ export function validCover(value: unknown): value is string {
 export function resolveCover(cover?: string): { image: string; coverId?: string } {
   if (cover?.startsWith("cover:")) { const id = cover.slice(6); if (isCoverId(id)) return { image: coverUrl(id), coverId: id }; }
   if (cover) return { image: cover };
-  return { image: asset("/images/quiz-universe.svg") };
+  return { image: asset("/images/hero.webp") };
 }

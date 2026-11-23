@@ -65,7 +65,7 @@ export const PACKS: QuizPack[] = [
   { id: "food", title: "À table !", description: "À déguster sans modération.", image: asset("/images/covers/food.webp"), color: "#f4a66d", icon: "food", questions: foodQuestions },
 ];
 export const MIX_PACK: QuizPack = {
-  id: "mix", title: "Le grand mélange", description: "Un peu de tout, beaucoup de fun.", image: asset("/images/quiz-universe.svg"), color: "#c6f36b", icon: "sparkles",
+  id: "mix", title: "Le grand mélange", description: "Un peu de tout, beaucoup de fun.", image: asset("/images/hero.webp"), color: "#c6f36b", icon: "sparkles",
   questions: [popQuestions[0], worldQuestions[0], foodQuestions[0], popQuestions[2], worldQuestions[2], foodQuestions[4]],
 };
 export const ALL_PACKS = [MIX_PACK, ...PACKS];
