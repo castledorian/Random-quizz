@@ -13,10 +13,19 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 type PeerError = Error & { type?: string };
+/** Serveurs STUN publics, plus un relais TURN facultatif (variables NEXT_PUBLIC_TURN_*) pour les réseaux stricts. */
+function peerConfig() {
+  const servers: RTCIceServer[] = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:global.stun.twilio.com:3478", "stun:stun.cloudflare.com:3478"] }];
+  try {
+    const urls = (process.env.NEXT_PUBLIC_TURN_URLS || "").split(",").map(u => u.trim()).filter(Boolean);
+    if (urls.length) servers.push({ urls, username: process.env.NEXT_PUBLIC_TURN_USERNAME || undefined, credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL || undefined });
+  } catch { /* Pas de relais configuré. */ }
+  return { debug: 0 as const, config: { iceServers: servers, iceCandidatePoolSize: 4 } };
+}
 async function loadPeer() { return (await import("peerjs")).Peer; }
 function openPeer(Peer: typeof import("peerjs").Peer, id?: string): Promise<Peer> {
   return new Promise((resolve, reject) => {
-    const peer = id ? new Peer(id, { debug: 0 }) : new Peer({ debug: 0 });
+    const peer = id ? new Peer(id, peerConfig()) : new Peer(peerConfig());
     const timer = setTimeout(() => { peer.destroy(); reject(new ApiError("Le service de connexion ne répond pas. Vérifiez votre réseau.", 503)); }, 12000);
     peer.once("open", () => { clearTimeout(timer); resolve(peer); });
     peer.once("error", (error: PeerError) => { clearTimeout(timer); peer.destroy(); reject(error); });
@@ -39,7 +48,10 @@ function serve(peer: Peer, room: RoomState) {
       if (conn.open) conn.send(response);
     });
   });
-  peer.on("disconnected", () => { if (!peer.destroyed) peer.reconnect(); });
+  peer.on("disconnected", () => {
+    const retry = () => { if (peer.destroyed || !peer.disconnected) return; try { peer.reconnect(); } catch { /* Nouvel essai ci-dessous. */ } window.setTimeout(retry, 3000); };
+    window.setTimeout(retry, 500);
+  });
 }
 async function host(room: RoomState, attempts: number): Promise<Peer> {
   const Peer = await loadPeer();
@@ -97,7 +109,10 @@ async function getConnection(code: string): Promise<DataConnection> {
   const known = connections.get(code);
   if (known?.open) return known;
   if (!clientPeer || clientPeer.destroyed) { const Peer = await loadPeer(); clientPeer = await openPeer(Peer); }
-  else if (clientPeer.disconnected) clientPeer.reconnect();
+  else if (clientPeer.disconnected) {
+    const current = clientPeer;
+    await new Promise<void>(done => { const timer = setTimeout(done, 4000); current.once("open", () => { clearTimeout(timer); done(); }); try { current.reconnect(); } catch { clearTimeout(timer); done(); } });
+  }
   const peer = clientPeer;
   return new Promise((resolve, reject) => {
     const conn = peer.connect(peerId(code), { reliable: true });
@@ -157,4 +172,13 @@ export async function roomsApi(method: "GET" | "POST", url: string, headers: Rec
   const res = await remoteCall(code, method, url, headers, body);
   adaptSnapshot(res);
   return { status: res.status, data: res.data };
+}
+
+/** Au retour sur l'application (téléphone déverrouillé, onglet rouvert), on rétablit la liaison sans attendre. */
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    for (const peer of [live?.peer, clientPeer]) if (peer && !peer.destroyed && peer.disconnected) { try { peer.reconnect(); } catch { /* Réessayé par la boucle de connexion. */ } }
+    for (const [code, conn] of connections) if (!conn.open) connections.delete(code);
+  });
 }

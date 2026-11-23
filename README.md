@@ -16,6 +16,19 @@ Jeu de quiz de soirée façon Jackbox : l'hôte ouvre un salon, les amis le rejo
 
 Le site est disponible sur `https://<utilisateur>.github.io/<depot>/`.
 
+## Réseaux stricts (relais TURN, facultatif)
+
+Par défaut, les téléphones se connectent à l'hôte en direct (WebRTC, avec des serveurs STUN publics). Certains réseaux (Wi-Fi d'entreprise, d'hôtel, d'école) bloquent ce mode. Pour les contourner, ajoutez un relais TURN dans les réglages du dépôt (Settings > Secrets and variables > Actions) :
+
+- variable `TURN_URLS` : une ou plusieurs adresses séparées par des virgules, par exemple `turn:relais.exemple.org:443?transport=tcp`
+- secrets `TURN_USERNAME` et `TURN_CREDENTIAL`
+
+Ces valeurs sont intégrées au site publié et donc visibles par ses visiteurs : utilisez un compte à usage limité.
+
+## Thèmes d'origine
+
+Le site propose trois thèmes de 20 questions et un « grand mélange ». Chaque thème peut être retiré de la bibliothèque (« Mes quiz ») puis rétabli. Ce choix est propre à l'appareil et inclus dans la sauvegarde JSON.
+
 ## Développement local
 
 ```bash

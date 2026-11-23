@@ -1,6 +1,7 @@
 import { resolveCover, validCover } from "@/lib/covers";
 import { validateQuestions, type HighScore, type QuizPack } from "@/lib/game";
 import { ApiError } from "@/lib/api-error";
+import { exportProfiles, importProfiles } from "@/lib/profiles";
 
 const PACKS_KEY = "quizclub-custom-packs-v1";
 const SCORES_KEY = "quizclub-club-scores-v1";
@@ -39,9 +40,24 @@ export function deleteCustomPack(id: unknown) {
   write(PACKS_KEY, read<StoredPack>(PACKS_KEY).filter(p => p.id !== id));
   return { ok: true };
 }
+const HIDDEN_KEY = "quizclub-hidden-builtins-v1";
+/** Thèmes d'origine que l'utilisateur a retirés de sa bibliothèque. */
+export function readHiddenBuiltIns(): string[] { return read<string>(HIDDEN_KEY).filter(id => typeof id === "string").slice(0, 20); }
+export function hideBuiltIn(id: unknown): string[] {
+  const hidden = readHiddenBuiltIns();
+  if (typeof id === "string" && !hidden.includes(id)) hidden.push(id);
+  write(HIDDEN_KEY, hidden); return hidden;
+}
+export function restoreBuiltIns(): string[] { write(HIDDEN_KEY, []); return []; }
+
 export const BACKUP_FORMAT = "random-quizz-backup";
+/** Sauvegarde complète : quiz, profils (pièces, statistiques), classement et thèmes retirés. */
 export function exportBackup() {
-  return { app: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(), packs: read<StoredPack>(PACKS_KEY).map(({ id, title, description, questions, cover }) => ({ id, title, description, questions, cover })) };
+  return {
+    app: BACKUP_FORMAT, version: 2, exportedAt: new Date().toISOString(),
+    packs: read<StoredPack>(PACKS_KEY).map(({ id, title, description, questions, cover }) => ({ id, title, description, questions, cover })),
+    ...exportProfiles(), scores: read<HighScore>(SCORES_KEY), hiddenBuiltIns: readHiddenBuiltIns(),
+  };
 }
 /** Fusionne une sauvegarde : un quiz de même identifiant est remplacé, les autres sont ajoutés. */
 export function importBackup(body: Record<string, unknown>): QuizPack[] {
@@ -56,6 +72,14 @@ export function importBackup(body: Record<string, unknown>): QuizPack[] {
     if (at >= 0) rows[at] = pack; else rows.unshift(pack);
   }
   write(PACKS_KEY, rows.slice(0, 100));
+  importProfiles({ profiles: body.profiles, aliases: body.aliases });
+  if (Array.isArray(body.scores)) {
+    const known = read<HighScore>(SCORES_KEY); const ids = new Set(known.map(s => s.id));
+    const added = (body.scores as unknown[]).slice(0, 100).filter((s): s is HighScore => !!s && typeof s === "object" && typeof (s as HighScore).id === "string" && !ids.has((s as HighScore).id) && typeof (s as HighScore).name === "string" && Number.isInteger((s as HighScore).score) && (s as HighScore).score >= 0 && (s as HighScore).score <= 120000 && Number.isInteger((s as HighScore).correct) && Number.isInteger((s as HighScore).total) && typeof (s as HighScore).packName === "string" && typeof (s as HighScore).date === "string")
+      .map(s => ({ id: s.id, name: s.name.slice(0, 24), score: s.score, correct: s.correct, total: s.total, packName: s.packName.slice(0, 80), date: s.date.slice(0, 40) }));
+    write(SCORES_KEY, [...known, ...added].sort((a, b) => b.score - a.score).slice(0, 100));
+  }
+  if (Array.isArray(body.hiddenBuiltIns)) write(HIDDEN_KEY, Array.from(new Set([...readHiddenBuiltIns(), ...(body.hiddenBuiltIns as unknown[]).filter((id): id is string => typeof id === "string" && id.length < 20)])).slice(0, 20));
   return readCustomPacks();
 }
 

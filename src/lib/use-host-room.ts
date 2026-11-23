@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import type { HostSession, RoomSnapshot } from "@/lib/game";
+import { useWakeLock } from "@/lib/use-wake-lock";
 
 const KEY = "quizclub-host-session-v1";
 export function useHostRoom() {
@@ -70,6 +71,7 @@ export function useHostRoom() {
     } catch (e) { setError(e instanceof Error ? e.message : "Cette commande n’a pas abouti."); return false; }
     finally { setBusy(false); }
   }, [session]);
+  useWakeLock(Boolean(session));
   const clearError = useCallback(() => setError(""), []);
   return { session, room, connection, busy, error, clearError, create, renew, command };
 }

@@ -1,6 +1,6 @@
 import type { HighScore } from "@/lib/game";
 import { HIGH_SCORE_KEY } from "@/lib/game";
-import { deleteCustomPack, importBackup, readClubScores, readCustomPacks, saveClubScore, saveCustomPack } from "@/lib/local-store";
+import { deleteCustomPack, hideBuiltIn, importBackup, readClubScores, readCustomPacks, restoreBuiltIns, saveClubScore, saveCustomPack } from "@/lib/local-store";
 import { roomsApi } from "@/lib/p2p";
 import { listProfiles, profilesAction } from "@/lib/profiles";
 import { ApiError } from "@/lib/api-error";
@@ -21,7 +21,7 @@ export async function api<T>(url: string, options?: RequestInit): Promise<T> {
     } else if (url.startsWith("/api/quizzes")) {
       if (method === "POST") {
         const payload = JSON.parse(body || "{}");
-        data = payload.action === "delete" ? deleteCustomPack(payload.id) : payload.action === "import" ? importBackup(payload) : saveCustomPack(payload);
+        data = payload.action === "delete" ? deleteCustomPack(payload.id) : payload.action === "import" ? importBackup(payload) : payload.action === "hide" ? hideBuiltIn(payload.id) : payload.action === "restore" ? restoreBuiltIns() : saveCustomPack(payload);
         status = payload.action ? 200 : 201;
       } else data = readCustomPacks();
     } else if (url.startsWith("/api/profiles")) {

@@ -5,6 +5,7 @@ import QRCode from "react-qr-code";
 import { ArrowRight, ArrowUpRight, AudioLines, BookOpen, Check, ChevronRight, ChevronsUpDown, CircleHelp, Clock3, Coins, Copy, Crown, ExternalLink, Gamepad2, Layers3, LayoutDashboard, LoaderCircle, Maximize, Menu, Minus, Plus, RefreshCw, UserX, Radio, Rocket, Settings2, ShoppingBag, Smartphone, Trophy, UserPlus, Users, Volume2, VolumeX, X, Zap } from "lucide-react";
 import { ALL_PACKS, MAX_PLAYERS, AVATARS, AVATAR_COLORS, formatScore, MIX_PACK, PACKS, SHOP_ITEMS, type HighScore, type QuizPack, type RoomSnapshot } from "@/lib/game";
 import { api, playSound, readHighScores } from "@/lib/client";
+import { readHiddenBuiltIns } from "@/lib/local-store";
 import { asset, BASE } from "@/lib/base";
 import { exportBackup } from "@/lib/local-store";
 import { useHostRoom } from "@/lib/use-host-room";
@@ -33,6 +34,7 @@ export default function QuizClub() {
   const [joinCode, setJoinCode] = useState("");
   const [origin, setOrigin] = useState("");
   const [customPacks, setCustomPacks] = useState<QuizPack[]>([]);
+  const [hidden, setHidden] = useState<string[]>([]);
   const [scores, setScores] = useState<HighScore[]>([]);
   const [selectedPack, setSelectedPack] = useState<QuizPack>(MIX_PACK);
   const [editorPack, setEditorPack] = useState<QuizPack | undefined>();
@@ -47,7 +49,11 @@ export default function QuizClub() {
   const [kickAsk, setKickAsk] = useState(false);
   const { session, room, connection, busy, error, clearError, create, renew, command } = useHostRoom();
   useEffect(() => { setKickAsk(false); }, [adjustId]);
-  const packs = [...customPacks, ...ALL_PACKS];
+  const visibleBuiltIns = ALL_PACKS.filter(p => !hidden.includes(p.id));
+  const visibleThemes = PACKS.filter(p => !hidden.includes(p.id));
+  const packs = [...customPacks, ...visibleBuiltIns];
+  /** Thème proposé par défaut : le grand mélange, sinon le premier quiz restant. */
+  const fallbackPack = visibleBuiltIns.find(p => p.id === "mix") ?? visibleBuiltIns[0] ?? customPacks[0];
   const inviteUrl = session ? `${origin}${BASE}/join/?code=${session.code}` : "";
   const notify = useCallback((text: string, isError = false) => setToast({ text, error: isError }), []);
 
@@ -60,6 +66,7 @@ export default function QuizClub() {
       setSound(localStorage.getItem("quizclub-sound") === "true");
     } catch { /* Defaults are ready to play. */ }
     void api<QuizPack[]>("/api/quizzes").then(setCustomPacks).catch(() => {});
+    setHidden(readHiddenBuiltIns());
     try { void navigator.storage?.persist?.(); } catch { /* Facultatif : protège les quiz contre le nettoyage automatique. */ }
   }, []);
   useEffect(() => { if (error) { notify(error, true); clearError(); } }, [error, clearError, notify]);
@@ -67,7 +74,9 @@ export default function QuizClub() {
 
   function navigate(next: View) { setView(next); setMobileNav(false); window.scrollTo({ top: 0, behavior: "smooth" }); }
   function changeSound() { setSound(s => { try { localStorage.setItem("quizclub-sound", String(!s)); } catch {} if (!s) playSound("click"); return !s; }); }
-  function openStart(pack: QuizPack = MIX_PACK) {
+  function openStart(given?: QuizPack) {
+    const pack = given ?? fallbackPack;
+    if (!pack) { notify("Créez d’abord un quiz pour lancer une partie."); editPack(); return; }
     let chosen = pack;
     if (pack.id === "mix" && room?.votingEnabled) {
       const votes = room.players.reduce<Record<string, number>>((all, p) => { if (p.vote) all[p.vote] = (all[p.vote] || 0) + 1; return all; }, {});
@@ -76,7 +85,9 @@ export default function QuizClub() {
     }
     setSelectedPack(chosen); setMode(room?.players.length ? "host" : "solo"); setStartError(""); setDialog("start");
   }
-  function startSolo(pack: QuizPack = MIX_PACK, bonus?: string) {
+  function startSolo(given?: QuizPack, bonus?: string) {
+    const pack = given ?? fallbackPack;
+    if (!pack) { notify("Créez d’abord un quiz pour jouer en solo.", true); editPack(); return; }
     setSelectedPack(pack); setStartingBonus(bonus); setSolo(true); setRunKey(k => k + 1); setDialog(null); navigate("game");
     if (sound) playSound("click");
   }
@@ -121,7 +132,16 @@ export default function QuizClub() {
       setCustomPacks(packs); notify(`Sauvegarde importée : ${packs.length} quiz dans votre bibliothèque.`);
     } catch (e) { notify(e instanceof SyntaxError ? "Ce fichier n’est pas une sauvegarde valide." : e instanceof Error ? e.message : "L’import a échoué.", true); }
   }
+  async function restoreThemes() {
+    try { setHidden(await api<string[]>("/api/quizzes", { method: "POST", body: JSON.stringify({ action: "restore" }) })); notify("Thèmes d’origine rétablis."); }
+    catch (e) { notify(e instanceof Error ? e.message : "Impossible de rétablir les thèmes.", true); }
+  }
   async function deletePack(pack: QuizPack) {
+    if (!pack.custom) {
+      try { setHidden(await api<string[]>("/api/quizzes", { method: "POST", body: JSON.stringify({ action: "hide", id: pack.id }) })); notify("Thème retiré. Vous pouvez le rétablir depuis « Mes quiz »."); }
+      catch (e) { notify(e instanceof Error ? e.message : "La suppression a échoué.", true); }
+      return;
+    }
     try { await api("/api/quizzes", { method: "POST", body: JSON.stringify({ action: "delete", id: pack.id }) }); setCustomPacks(p => p.filter(x => x.id !== pack.id)); notify("Quiz supprimé."); }
     catch (e) { notify(e instanceof Error ? e.message : "La suppression a échoué.", true); }
   }
@@ -157,12 +177,12 @@ export default function QuizClub() {
         <div className={`dashboard-grid ${activeGame ? "playing-dashboard" : ""}`}><div className="dashboard-primary">
           {activeGame ? solo ? <SoloGame key={runKey} pack={selectedPack} name={name} sound={sound} startingBonus={startingBonus} shopEnabled={room?.shopEnabled ?? true} onExit={() => { setSolo(false); navigate("plateau"); }} onFinish={finishSolo} /> : <HostGame room={room!} onCommand={hostCommand} onExit={() => navigate("plateau")} busy={busy} /> : <>
             <section className="hero-card"><img className="hero-image" src={asset("/images/hero.webp")} alt="Un plateau de jeu cosmique violet, une sphère point d’interrogation et un anneau vert citron" fetchPriority="high" /><div className="hero-shade" /><div className="hero-content"><h2>Votre soirée.<br />Vos règles.<br /><span>Leur défaite.</span></h2><p>Le jeu de quiz qui transforme votre salon<br className="hero-line-break" /> en plateau télé. La mauvaise foi en plus.</p><div className="hero-actions"><button className="button button-primary" onClick={() => remoteActive ? (setSolo(false), navigate("game")) : openStart()}>{remoteActive ? "Reprendre la partie" : "Lancer une partie"}<ArrowUpRight size={18} /></button><button className="hero-demo-button" onClick={() => startSolo()}><span><Gamepad2 size={16} /></span>Essayer en solo</button></div><div className="hero-bottom-note"><Users size={13} /><span>2 à {MAX_PLAYERS} joueurs</span><i /><Smartphone size={12} /><span>Un téléphone suffit</span></div></div></section>
-            <section className="themes-section"><div className="section-heading"><div><h2>Choisissez votre terrain de jeu<span>.</span></h2><p>Il y en a pour tous les cerveaux.</p></div><button className="text-button" onClick={() => navigate("library")}>Tous les quiz<ArrowUpRight size={14} /></button></div><div className="theme-grid">{PACKS.map((pack, i) => <button key={pack.id} className={`theme-card theme-${pack.id}`} onClick={() => openStart(pack)}><img src={pack.image} alt="" /><div className="theme-shade" /><div className="theme-card-content"><span className="theme-index">0{i + 1}</span><h3>{pack.title}</h3><span className="theme-card-meta">{pack.questions.length} questions</span></div><span className="theme-arrow"><ArrowUpRight size={17} /></span></button>)}</div></section>
+            <section className="themes-section"><div className="section-heading"><div><h2>Choisissez votre terrain de jeu<span>.</span></h2><p>Il y en a pour tous les cerveaux.</p></div><button className="text-button" onClick={() => navigate("library")}>Tous les quiz<ArrowUpRight size={14} /></button></div><div className="theme-grid">{visibleThemes.length === 0 ? <div className="themes-empty"><p>Les thèmes d’origine sont retirés : votre bibliothèque ne contient que vos quiz.</p><div><button className="button button-soft" onClick={() => editPack()}>Créer un quiz</button><button className="button button-soft" onClick={() => void restoreThemes()}>Rétablir les thèmes d’origine</button></div></div> : visibleThemes.map((pack, i) => <button key={pack.id} className={`theme-card theme-${pack.id}`} onClick={() => openStart(pack)}><img src={pack.image} alt="" /><div className="theme-shade" /><div className="theme-card-content"><span className="theme-index">0{i + 1}</span><h3>{pack.title}</h3><span className="theme-card-meta">{pack.questions.length} questions</span></div><span className="theme-arrow"><ArrowUpRight size={17} /></span></button>)}</div></section>
                       </>}
                   </div><aside className="dashboard-aside">{remoteActive && !solo ? <LiveScores room={room} busy={busy} onCommand={hostCommand} onInvite={() => setDialog("invite")} onAdjust={id => { setAdjustId(id); setAdjustAmount("100"); }} /> : <section className="room-card panel"><div className="panel-heading"><h2>Le salon</h2><span className="pill pill-green"><span />{room?.players.length || 0}/{MAX_PLAYERS} JOUEURS</span></div><div className="room-invite-block"><button className="qr-wrap" onClick={() => setDialog("invite")} aria-label="Agrandir le QR code d’invitation">{session ? <QRCode value={inviteUrl} size={91} fgColor="#1c1829" /> : <LoaderCircle className="spin" size={30} />}</button><div className="room-code-block"><span>LE CODE DE LA SOIRÉE</span><button className="room-code" onClick={() => void copyInvite(true)} title="Copier le code">{session?.code || "••••"}<Copy size={14} /></button><p>Scannez, rejoignez.<br />C’est aussi simple que ça.</p></div></div><div className="room-player-section"><div className="room-player-title"><span>{room?.players.length ? "La bande se rassemble" : "Il ne manque que la bande"}</span><span className="status-dot" /></div>{room?.players.length ? <div className="connected-players">{room.players.map(p => <span key={p.id} className="lobby-player" title={`${p.name} · ${p.coins} pièces — cliquer pour ajuster`} role="button" tabIndex={0} onClick={() => { setAdjustId(p.id); setAdjustAmount("100"); }}><span className="player-avatar" style={{ background: AVATAR_COLORS[p.avatar] }}>{AVATARS[p.avatar]}</span><small>{p.name}</small></span>)}</div> : <div className="empty-players"><div className="empty-avatar"><Users size={17} /></div><div className="empty-avatar"><Plus size={16} /></div><div className="empty-avatar"><Plus size={16} /></div><span>À vous de faire<br />les invitations.</span></div>}</div>{room?.votingEnabled && room.players.some(p => p.vote) && <button className="room-vote-summary" onClick={() => openStart()}><Layers3 size={13} /> Le vote du salon est prêt <ArrowUpRight size={13} /></button>}<button className="button button-outline full-width" onClick={() => connection === "offline" ? void create() : setDialog("invite")}><UserPlus size={16} />{connection === "offline" ? "Reconnecter le salon" : "Inviter les amis"}<ArrowUpRight size={15} /></button>{connection !== "offline" && <button className="text-button room-renew" disabled={busy || !session} onClick={() => setDialog("renew")}><RefreshCw size={14} /> Nouveau code et QR code</button>}</section>}
           <section className="rules-card panel"><div className="panel-heading"><h2>Votre partie, vos règles.</h2><Settings2 size={16} /></div><div className="rule-row"><span className="rule-icon"><ShoppingBag size={15} /></span><div><strong>Boutique en partie</strong><small>Des bonus pour pimenter le jeu</small></div><Toggle label="Activer la boutique en partie" checked={room?.shopEnabled ?? true} disabled={!room || busy} onChange={() => void command("settings", { shopEnabled: !room?.shopEnabled })} /></div><div className="rule-row"><span className="rule-icon"><Layers3 size={15} /></span><div><strong>Vote des thèmes</strong><small>La démocratie, version quiz</small></div><Toggle label="Activer le vote des thèmes" checked={room?.votingEnabled ?? true} disabled={!room || busy} onChange={() => void command("settings", { votingEnabled: !room?.votingEnabled })} /></div><div className="rule-row"><span className="rule-icon"><Smartphone size={15} /></span><div><strong>Vidéos et musiques sur les téléphones</strong><small>Les joueurs peuvent les lancer eux-mêmes</small></div><Toggle label="Autoriser la lecture des vidéos et musiques sur les téléphones" checked={room?.phoneMedia ?? true} disabled={!room || busy} onChange={() => void command("settings", { phoneMedia: !(room?.phoneMedia ?? true) })} /></div><div className="rule-row"><span className="rule-icon"><AudioLines size={15} /></span><div><strong>Ambiance sonore</strong><small>Pour se croire à la télé</small></div><Toggle label="Activer l’ambiance sonore" checked={sound} onChange={changeSound} /></div></section>
                   </aside></div></>}
-        {view === "library" && <Library packs={packs} onPlay={openStart} onEdit={editPack} onCreate={() => editPack()} onDelete={pack => void deletePack(pack)} onExport={downloadBackup} onImport={file => void importBackupFile(file)} />}
+        {view === "library" && <Library packs={packs} onPlay={openStart} onEdit={editPack} onCreate={() => editPack()} onDelete={pack => void deletePack(pack)} hiddenCount={hidden.length} onRestore={() => void restoreThemes()} onExport={downloadBackup} onImport={file => void importBackupFile(file)} />}
         {view === "leaderboard" && <Leaderboard localScores={scores} onPlay={() => startSolo()} />}
         {view === "editor" && <QuizEditor key={editorPack?.id || "new"} initialPack={editorPack} onBack={() => navigate("library")} onSaved={pack => { setCustomPacks(p => p.some(x => x.id === pack.id) ? p.map(x => x.id === pack.id ? pack : x) : [pack, ...p]); navigate("library"); notify("Quiz sauvegardé. Votre bande n’a qu’à bien se tenir !"); }} />}
         {view === "shop" && <div className="shop-page"><div className="section-page-heading"><div><span className="eyebrow">LA BOUTIQUE</span><h1>Un petit avantage. Un grand sourire.</h1><p>Les bonnes réponses rapportent des pièces. Les pièces changent la partie.</p></div><span className="shop-page-balance"><Coins size={21} /><strong>150</strong><span>pièces au départ</span></span></div><div className="shop-product-grid">{SHOP_ITEMS.map(item => <article className="shop-product" style={{ "--product-color": item.color } as React.CSSProperties} key={item.id}><div className="product-art"><span className="product-orbit" /><span className="product-orb"><ShopItemIcon id={item.id} size={60} /></span><span className="product-star">✦</span><span className="product-mini-star">✧</span></div><span className="eyebrow">{item.id === "double" ? "POUR LES AUDACIEUX" : item.id === "hint" ? "POUR LES STRATÈGES" : "POUR LES PRUDENTS"}</span><h2>{item.name}</h2><p>{item.description}</p><div className="product-price"><strong>{item.price}</strong><Coins size={17} /><span>pièces</span></div><button className="button button-soft full-width" onClick={() => startSolo(MIX_PACK, item.id)}>Tester ce bonus en solo<ArrowUpRight size={16} /></button></article>)}</div><div className="shop-how"><div><span>01</span><h3>Jouez pour gagner.</h3><p>80 pièces pour chaque bonne réponse, et 10 pour chaque tentative.</p></div><div><span>02</span><h3>Dépensez au bon moment.</h3><p>La boutique reste ouverte pendant la partie. Le chrono, lui, continue.</p></div><div><span>03</span><h3>Gardez un peu de panache.</h3><p>Les bonus aident. Mais rien ne remplace une bonne réponse.</p></div></div></div>}

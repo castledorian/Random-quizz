@@ -1,6 +1,8 @@
 import { ALL_PACKS, displayOptions, gradeAnswer, isScored, MAX_PLAYERS, orderSolution, QUESTION_TIME, qtype, questionTime, sanitizeAnswer, SHOP_ITEMS, type Answer, type Question, type QuestionStats, type QuizPack, type RoomSnapshot, type RoomStatus } from "@/lib/game";
 import { ApiError } from "@/lib/api-error";
-import { readCustomPacks } from "@/lib/local-store";
+import { readCustomPacks, readHiddenBuiltIns } from "@/lib/local-store";
+/** Thèmes d'origine encore présents dans la bibliothèque de l'hôte. */
+const voteIds = () => { const hidden = readHiddenBuiltIns(); return ALL_PACKS.filter(p => !hidden.includes(p.id)).map(p => p.id); };
 import { ensureProfile, recordGame, resolveProfileId, syncWallets } from "@/lib/profiles";
 
 /**
@@ -82,7 +84,7 @@ export function roomSnapshot(room: RoomState, hostToken?: string | null, playerT
       hasAnswered: answered.has(key(p.id)), doubleNext: p.doubleNext, shield: p.shield, hint: p.hint,
     })),
     answerCount: room.players.filter(p => answered.has(key(p.id))).length,
-    shopEnabled: room.shopEnabled, votingEnabled: room.votingEnabled, phoneMedia: room.phoneMedia !== false,
+    shopEnabled: room.shopEnabled, votingEnabled: room.votingEnabled, phoneMedia: room.phoneMedia !== false, votePacks: voteIds(),
     timeLimit: question ? questionTime(question) : QUESTION_TIME,
     ...(room.hostToken === hostToken ? { upcomingMedia: room.questions[room.questionIndex + 1]?.media ?? null } : {}),
     ...(revealed && question ? { stats: buildStats(room, question) } : {}),
@@ -185,7 +187,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     const answerKey = `${player.id}:${room.questionIndex}`;
     if (action === "vote") {
       if (!room.votingEnabled || room.status !== "lobby") throw new ApiError("Les votes sont fermés.");
-      if (!ALL_PACKS.some(p => p.id === body.packId)) throw new ApiError("Thème inconnu.");
+      if (!voteIds().includes(body.packId as string)) throw new ApiError("Thème inconnu.");
       player.vote = body.packId as string;
     } else if (action === "buy") {
       if (!room.shopEnabled || room.status === "finished" || room.status === "lobby") throw new ApiError("La boutique ouvre pendant la partie.");

@@ -1,4 +1,5 @@
 import { asset } from "@/lib/base";
+import { foodQuestions, mixQuestions, popQuestions, worldQuestions } from "@/lib/builtin-questions";
 
 export type Question = {
   id: string;
@@ -129,31 +130,6 @@ export type QuizPack = {
   coverId?: string;
 };
 
-const popQuestions: Question[] = [
-  { id: "pop-1", prompt: "Comment s’appelle le frère de Mario ?", options: ["Wario", "Luigi", "Yoshi", "Toad"], correct: 1, explanation: "C’est Luigi, le célèbre plombier à la casquette verte. Le joueur 2 mérite aussi son moment de gloire !", category: "Pop culture" },
-  { id: "pop-2", prompt: "Sur quelle plateforme peut-on regarder Stranger Things ?", options: ["Disney+", "Prime Video", "Netflix", "Apple TV+"], correct: 2, explanation: "Bienvenue à Hawkins ! Stranger Things est une série originale Netflix, lancée en 2016.", category: "Pop culture" },
-  { id: "pop-3", prompt: "« Vers l’infini et au-delà ! » Qui a dit ça ?", options: ["Superman", "Buzz l’Éclair", "Wall-E", "Dark Vador"], correct: 1, explanation: "C’est la réplique culte de Buzz l’Éclair dans Toy Story. Ce n’est pas voler, c’est tomber avec panache !", category: "Pop culture" },
-  { id: "pop-4", prompt: "De quel type est le Pokémon Pikachu ?", options: ["Feu", "Plante", "Normal", "Électrik"], correct: 3, explanation: "Pikachu est de type Électrik. Ses petites joues rouges emmagasinent de l’électricité.", category: "Pop culture" },
-  { id: "pop-5", prompt: "Dans quel pays Spotify a-t-il été créé ?", options: ["États-Unis", "Suède", "Royaume-Uni", "Danemark"], correct: 1, explanation: "Spotify est né à Stockholm, en Suède, en 2006. Comme quoi, il n’y a pas que les meubles en kit !", category: "Pop culture" },
-  { id: "pop-6", prompt: "Quel réalisateur a signé les premiers épisodes de Mercredi ?", options: ["Steven Spielberg", "Wes Anderson", "Tim Burton", "Christopher Nolan"], correct: 2, explanation: "L’univers gothique et décalé de Mercredi porte bien la signature de Tim Burton.", category: "Pop culture" },
-];
-const worldQuestions: Question[] = [
-  { id: "world-1", prompt: "Quelle est la capitale de l’Australie ?", options: ["Sydney", "Melbourne", "Canberra", "Perth"], correct: 2, explanation: "C’est Canberra ! La ville a été choisie comme compromis entre les rivales Sydney et Melbourne.", category: "Tour du monde" },
-  { id: "world-2", prompt: "Quel est le plus grand océan de notre planète ?", options: ["Atlantique", "Indien", "Arctique", "Pacifique"], correct: 3, explanation: "L’océan Pacifique recouvre environ un tiers de la surface de la Terre. Ça en fait, des longueurs !", category: "Tour du monde" },
-  { id: "world-3", prompt: "Quelle ville s’étend sur deux continents ?", options: ["Istanbul", "Le Caire", "Athènes", "Lisbonne"], correct: 0, explanation: "Istanbul est à cheval entre l’Europe et l’Asie, de part et d’autre du Bosphore.", category: "Tour du monde" },
-  { id: "world-4", prompt: "Quel pays arbore une feuille d’érable sur son drapeau ?", options: ["Japon", "Canada", "Suisse", "Nouvelle-Zélande"], correct: 1, explanation: "Le Canada ! La feuille d’érable à onze pointes figure sur son drapeau depuis 1965.", category: "Tour du monde" },
-  { id: "world-5", prompt: "Dans quelle ville se trouve la Sagrada Família ?", options: ["Madrid", "Rome", "Barcelone", "Séville"], correct: 2, explanation: "La célèbre basilique d’Antoni Gaudí se trouve à Barcelone. Sa construction a commencé en 1882 !", category: "Tour du monde" },
-  { id: "world-6", prompt: "Quel pays possède le plus de fuseaux horaires, outre-mer compris ?", options: ["Russie", "Chine", "États-Unis", "France"], correct: 3, explanation: "Avec ses territoires ultramarins, la France couvre 12 fuseaux horaires. Il est toujours l’heure de l’apéro quelque part !", category: "Tour du monde" },
-];
-const foodQuestions: Question[] = [
-  { id: "food-1", prompt: "Quelle herbe est la star du pesto traditionnel ?", options: ["Persil", "Coriandre", "Basilic", "Menthe"], correct: 2, explanation: "Le pesto alla genovese se prépare avec du basilic frais, des pignons, de l’ail, de l’huile d’olive et du fromage.", category: "À table !" },
-  { id: "food-2", prompt: "De quel pays vient le tiramisu ?", options: ["Espagne", "France", "Grèce", "Italie"], correct: 3, explanation: "Le tiramisu est italien. Son nom signifie littéralement « remonte-moi le moral ». Mission accomplie !", category: "À table !" },
-  { id: "food-3", prompt: "Quel ingrédient donne sa couleur dorée à la paella traditionnelle ?", options: ["Curcuma", "Safran", "Paprika", "Curry"], correct: 1, explanation: "Le safran parfume et colore le riz de la paella. Cette épice vient des pistils d’une fleur de crocus.", category: "À table !" },
-  { id: "food-4", prompt: "Quel est l’ingrédient principal du guacamole ?", options: ["Courgette", "Petit pois", "Avocat", "Concombre"], correct: 2, explanation: "L’avocat, bien sûr ! Le guacamole nous vient du Mexique et se partage… ou pas.", category: "À table !" },
-  { id: "food-5", prompt: "Le mot « sushi » fait surtout référence à quoi ?", options: ["Au poisson cru", "Au riz vinaigré", "Aux algues", "À la sauce soja"], correct: 1, explanation: "Surprise : le sushi se définit par son riz vinaigré, pas par le poisson cru. Il peut même être végétarien !", category: "À table !" },
-  { id: "food-6", prompt: "De quel pays vient l’ancêtre du croissant, le kipferl ?", options: ["France", "Belgique", "Autriche", "Suisse"], correct: 2, explanation: "Le kipferl est autrichien. Les boulangers français l’ont ensuite réinventé avec une pâte levée feuilletée.", category: "À table !" },
-];
-
 export const PACKS: QuizPack[] = [
   { id: "pop", title: "Pop culture", description: "Pour les pros de la référence.", image: asset("/images/covers/pop-culture.webp"), color: "#9b75ed", icon: "gamepad", questions: popQuestions },
   { id: "world", title: "Tour du monde", description: "Le voyage, sans le décalage.", image: asset("/images/covers/world.webp"), color: "#5dcab2", icon: "globe", questions: worldQuestions },
@@ -161,7 +137,7 @@ export const PACKS: QuizPack[] = [
 ];
 export const MIX_PACK: QuizPack = {
   id: "mix", title: "Le grand mélange", description: "Un peu de tout, beaucoup de fun.", image: asset("/images/hero.webp"), color: "#c6f36b", icon: "sparkles",
-  questions: [popQuestions[0], worldQuestions[0], foodQuestions[0], popQuestions[2], worldQuestions[2], foodQuestions[4]],
+  questions: mixQuestions,
 };
 export const ALL_PACKS = [MIX_PACK, ...PACKS];
 export const AVATARS = ["👾", "🦊", "🐸", "🦄", "🐼", "🦁", "🐙", "🐱"];
@@ -185,6 +161,8 @@ export type RoomSnapshot = {
   kicked?: boolean;
   /** Vidéos et musiques lisibles sur le téléphone des joueurs (réglage de l’hôte). */
   phoneMedia?: boolean;
+  /** Thèmes d’origine proposables au vote (ceux que l’hôte n’a pas retirés). */
+  votePacks?: string[];
   /** Durée de la question en secondes (0 = sans limite). */
   timeLimit: number;
   /** Média de la question suivante, réservé à l’hôte : permet de le précharger. */

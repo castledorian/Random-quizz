@@ -92,3 +92,24 @@ export function profilesAction(body: Record<string, unknown>): ClubProfile[] {
   save(KEY, profiles);
   return listProfiles();
 }
+
+/** Profils et redirections de fusion, pour la sauvegarde complète. */
+export function exportProfiles() { return { profiles: Object.values(all()), aliases: aliases() }; }
+/** Fusionne des profils importés : en cas de doublon, le plus récemment vu l'emporte. */
+export function importProfiles(data: { profiles?: unknown; aliases?: unknown }) {
+  const num = (v: unknown, max = 1e9) => typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(max, Math.round(v))) : 0;
+  const date = (v: unknown) => typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : new Date().toISOString();
+  const profiles = all(); let count = 0;
+  for (const raw of Array.isArray(data.profiles) ? data.profiles.slice(0, 500) : []) {
+    const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    if (typeof r.id !== "string" || r.id.length < 8 || r.id.length > 64 || typeof r.name !== "string" || r.name.trim().length < 2) continue;
+    const incoming: ClubProfile = { id: r.id, name: r.name.trim().slice(0, 24), avatar: num(r.avatar, 7), coins: num(r.coins), gamesPlayed: num(r.gamesPlayed), wins: num(r.wins), totalScore: num(r.totalScore), bestScore: num(r.bestScore), correct: num(r.correct), answered: num(r.answered), firstSeen: date(r.firstSeen), lastSeen: date(r.lastSeen) };
+    const current = profiles[incoming.id];
+    if (!current || Date.parse(incoming.lastSeen) >= Date.parse(current.lastSeen)) { profiles[incoming.id] = incoming; count++; }
+  }
+  save(KEY, profiles);
+  const map = aliases();
+  if (data.aliases && typeof data.aliases === "object") for (const [from, to] of Object.entries(data.aliases as Record<string, unknown>).slice(0, 500)) if (typeof to === "string" && from !== to && from.length <= 64 && to.length <= 64) map[from] = to;
+  save(ALIAS_KEY, map);
+  return count;
+}
