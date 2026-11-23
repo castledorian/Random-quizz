@@ -7,6 +7,7 @@ import { api, playSound } from "@/lib/client";
 import { BASE } from "@/lib/base";
 import { BonusShop, Brand, Modal, Particles } from "@/components/ui";
 import QuestionMedia from "@/components/question-media";
+import { registerServiceWorker } from "@/components/app-install";
 
 export default function JoinGame() {
   const [code, setCode] = useState("");
@@ -28,6 +29,7 @@ export default function JoinGame() {
   const status = room?.status;
   const timed = (room?.timeLimit ?? QUESTION_TIME) > 0;
 
+  useEffect(() => { registerServiceWorker(); }, []);
   useEffect(() => {
     const query = new URLSearchParams(window.location.search).get("code")?.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "";
     setCode(query);

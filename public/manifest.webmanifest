@@ -1,0 +1,17 @@
+{
+  "name": "Random Quizz — le quiz de soirée",
+  "short_name": "Random Quizz",
+  "description": "Le quiz qui transforme votre salon en plateau télé. Solo ou multijoueur avec vos téléphones.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#11121b",
+  "theme_color": "#11121b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

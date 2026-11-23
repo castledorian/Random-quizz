@@ -11,6 +11,7 @@ import { useHostRoom } from "@/lib/use-host-room";
 import { Brand, Modal, ShopItemIcon, Toggle } from "@/components/ui";
 import SoloGame from "@/components/solo-game";
 import CoverImg from "@/components/cover-img";
+import AppInstallButton from "@/components/app-install";
 import HostGame from "@/components/host-game";
 import Library from "@/components/library";
 import Leaderboard from "@/components/leaderboard";
@@ -134,7 +135,7 @@ export default function QuizClub() {
       </nav>
       <div className="sidebar-separator" />
       <button className="nav-item nav-secondary" onClick={() => setDialog("join")}><Smartphone size={18} strokeWidth={1.7} /><span>Rejoindre une partie</span><ArrowUpRight size={14} /></button>
-      <button className="nav-item nav-secondary" onClick={() => setDialog("rules")}><CircleHelp size={18} strokeWidth={1.7} /><span>Comment jouer</span></button>
+      <button className="nav-item nav-secondary" onClick={() => setDialog("rules")}><CircleHelp size={18} strokeWidth={1.7} /><span>Comment jouer</span></button><AppInstallButton className="nav-item nav-secondary nav-install" onIosHelp={() => notify("Sur iPhone/iPad : touchez Partager, puis « Sur l’écran d’accueil ».")} />
       <div className="sidebar-spacer" />
       <div className="editor-promo"><div className="promo-spark"><Sparkles size={25} strokeWidth={1.3} /><span>✧</span></div><h3>Votre bande.<br />Votre propre quiz.</h3><p>Les meilleures références ?<br />Celles que vous seuls avez.</p><button onClick={() => editPack()}>Créer mon quiz<Plus size={17} /></button></div>
       <div className="sidebar-bottom"><div className="connection-line"><span className={`status-dot ${connection === "offline" ? "offline-dot" : ""}`} />{connection === "online" ? "Tout est prêt pour jouer" : connection === "connecting" ? "On prépare le plateau…" : "Reconnexion au salon…"}</div><button className="host-profile" onClick={() => { setDraftName(name); setDraftAvatar(avatar); setDialog("profile"); }}><span className="profile-avatar" style={{ background: AVATAR_COLORS[avatar] }}>{AVATARS[avatar]}</span><span><strong>{name}</strong><small>Maître du jeu</small></span><ChevronsUpDown size={15} /></button></div>

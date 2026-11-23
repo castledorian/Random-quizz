@@ -187,3 +187,4 @@ html:has(.player-page),html:has(.player-page) body{overflow:hidden;overscroll-be
 .clip-layer.yt-crop iframe{position:absolute;left:0;top:-18%;width:100%;height:118%}
 /* Affiches : le sujet est à droite, on le garde visible même en format portrait */
 .theme-card>img,.library-card-art>img,.cover-tile>img,.start-pack-preview>img{object-position:72% 50%}
+.nav-install{color:var(--lime)!important}
