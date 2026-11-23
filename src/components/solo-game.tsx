@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, Coins, Flame, Pause, Play, RotateCcw, Sho
 import { formatScore, QUESTION_TIME, SHOP_ITEMS, type HighScore, type QuizPack } from "@/lib/game";
 import { api, playSound, readHighScores, saveHighScore } from "@/lib/client";
 import { BonusShop, Modal, Particles } from "@/components/ui";
+import QuestionMedia from "@/components/question-media";
 
 export default function SoloGame({ pack, name, sound, onExit, onFinish, startingBonus, shopEnabled = true }: { pack: QuizPack; name: string; sound: boolean; onExit: () => void; onFinish: (score: HighScore) => void; startingBonus?: string; shopEnabled?: boolean }) {
   const [index, setIndex] = useState(0);
@@ -116,7 +117,7 @@ export default function SoloGame({ pack, name, sound, onExit, onFinish, starting
     <div className="question-meta"><span>QUESTION <strong>{String(index + 1).padStart(2, "0")}</strong> / {String(pack.questions.length).padStart(2, "0")}</span><span className="live-score"><Zap size={16} />{formatScore(score)} <small>pts</small></span></div>
     <div className="question-category"><span className="category-pill">{question.category}</span>{streak >= 2 && <span className="streak"><Flame size={14} /> {streak} à la suite !</span>}<div className={`timer ${timeLeft < 6 ? "timer-urgent" : ""}`} aria-label={`${Math.ceil(timeLeft)} secondes restantes`}><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="26" className="timer-track" /><circle cx="30" cy="30" r="26" className="timer-value" style={{ strokeDashoffset: 163.36 * (1 - timeLeft / QUESTION_TIME) }} /></svg><strong>{Math.ceil(timeLeft)}</strong></div></div>
     <h2 className="question-title" key={question.id}>{question.prompt}</h2>
-    {question.mediaUrl && (question.mediaType === "audio" ? <audio controls src={question.mediaUrl} className="question-audio" /> : <img className="question-image" src={question.mediaUrl} alt="Illustration de la question" />)}
+    <QuestionMedia question={question} mode="stage" autoplay={phase === "playing"} runKey={`${question.id}-${index}`} />
     <div className="answer-grid">{question.options.map((option, i) => {
       const eliminated = hint && i !== question.correct && question.options.map((_, n) => n).filter(n => n !== question.correct).slice(0, 2).includes(i);
       return <button key={`${index}-${i}`} className={`answer-option ${phase === "feedback" && i === question.correct ? "is-correct" : ""} ${phase === "feedback" && selected === i && !isRight ? "is-wrong" : ""} ${eliminated && phase !== "feedback" ? "is-eliminated" : ""}`} disabled={phase !== "playing" || eliminated} onClick={() => answer(i)}><span className="answer-letter">{String.fromCharCode(65 + i)}</span><span>{option}</span><span className="answer-indicator">{phase === "feedback" && i === question.correct ? <Check size={20} /> : phase === "feedback" && selected === i ? <X size={20} /> : <kbd>{i + 1}</kbd>}</span></button>;

@@ -7,9 +7,15 @@ export type Question = {
   correct: number;
   explanation: string;
   category: string;
+  /** Ancien format (fichier importé) : conservé pour les quiz déjà créés. */
   mediaUrl?: string;
   mediaType?: "image" | "audio";
+  /** Média par lien : photo/GIF, vidéo ou musique YouTube (avec début et fin). */
+  media?: QuestionMedia;
 };
+
+export type QuestionMedia = { kind: "photo" | "video" | "music"; url: string; start?: number; end?: number };
+export const MAX_PLAYERS = 24;
 
 export type QuizPack = {
   id: string;
@@ -80,11 +86,55 @@ export const SHOP_ITEMS = [
   { id: "shield", name: "Filet de sécurité", description: "Une erreur ? Vous gagnez tout de même 150 points.", price: 150, icon: "shield", color: "#78cabb", label: "♡" },
 ] as const;
 
+export function youtubeId(url: string): string | null {
+  try {
+    const u = new URL(url.trim());
+    const host = u.hostname.replace(/^(www|m|music)\./, "");
+    let id: string | null = null;
+    if (host === "youtu.be") id = u.pathname.slice(1).split("/")[0];
+    else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      if (u.pathname === "/watch") id = u.searchParams.get("v");
+      else id = u.pathname.match(/^\/(?:shorts|embed|live|v)\/([\w-]{11})/)?.[1] ?? null;
+    }
+    return id && /^[\w-]{11}$/.test(id) ? id : null;
+  } catch { return null; }
+}
+/** « 1:23 », « 83 », « 1h2m3s » → secondes. Renvoie null si vide ou invalide. */
+export function parseTime(text: string): number | null {
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+  if (/^\d+$/.test(t)) return Number(t);
+  const parts = t.match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2})$/);
+  if (parts) return Number(parts[1] || 0) * 3600 + Number(parts[2]) * 60 + Number(parts[3]);
+  const hms = t.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (hms && (hms[1] || hms[2] || hms[3])) return Number(hms[1] || 0) * 3600 + Number(hms[2] || 0) * 60 + Number(hms[3] || 0);
+  return null;
+}
+export function formatTime(seconds?: number): string {
+  if (seconds === undefined || !Number.isFinite(seconds)) return "";
+  const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = Math.floor(seconds % 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+export function validMedia(m: unknown): m is QuestionMedia {
+  if (!m || typeof m !== "object") return false;
+  const { kind, url, start, end } = m as Record<string, unknown>;
+  if (kind !== "photo" && kind !== "video" && kind !== "music") return false;
+  if (typeof url !== "string" || url.length > 1000 || !/^https?:\/\//i.test(url.trim())) return false;
+  if (kind !== "photo") {
+    if (!youtubeId(url)) return false;
+    const ok = (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 86400);
+    if (!ok(start) || !ok(end)) return false;
+    if (typeof start === "number" && typeof end === "number" && end <= start) return false;
+  }
+  return true;
+}
+
 export function validateQuestions(value: unknown): value is Question[] {
   return Array.isArray(value) && value.length > 0 && value.length <= 30 && value.every(q =>
     q && typeof q.id === "string" && typeof q.prompt === "string" && q.prompt.trim().length > 2 && q.prompt.length <= 500 &&
     Array.isArray(q.options) && q.options.length === 4 && q.options.every((o: unknown) => typeof o === "string" && o.trim().length > 0 && o.length <= 180) &&
     Number.isInteger(q.correct) && q.correct >= 0 && q.correct <= 3 && typeof q.explanation === "string" && typeof q.category === "string" &&
+    (q.media === undefined || validMedia(q.media)) &&
     (!q.mediaUrl || (typeof q.mediaUrl === "string" && q.mediaUrl.length <= 4000000 && /^data:(image\/(png|jpeg|webp|gif)|audio\/(mpeg|mp3|wav|ogg|x-wav));base64,/.test(q.mediaUrl)))
   );
 }

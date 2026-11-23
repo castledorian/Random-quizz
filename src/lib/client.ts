@@ -1,6 +1,6 @@
 import type { HighScore } from "@/lib/game";
 import { HIGH_SCORE_KEY } from "@/lib/game";
-import { readClubScores, readCustomPacks, saveClubScore, saveCustomPack } from "@/lib/local-store";
+import { deleteCustomPack, importBackup, readClubScores, readCustomPacks, saveClubScore, saveCustomPack } from "@/lib/local-store";
 import { roomsApi } from "@/lib/p2p";
 import { ApiError } from "@/lib/api-error";
 
@@ -18,8 +18,11 @@ export async function api<T>(url: string, options?: RequestInit): Promise<T> {
     if (url.startsWith("/api/rooms")) {
       ({ status, data } = await roomsApi(method, url, headers, body));
     } else if (url.startsWith("/api/quizzes")) {
-      data = method === "POST" ? saveCustomPack(JSON.parse(body || "{}")) : readCustomPacks();
-      if (method === "POST") status = 201;
+      if (method === "POST") {
+        const payload = JSON.parse(body || "{}");
+        data = payload.action === "delete" ? deleteCustomPack(payload.id) : payload.action === "import" ? importBackup(payload) : saveCustomPack(payload);
+        status = payload.action ? 200 : 201;
+      } else data = readCustomPacks();
     } else if (url.startsWith("/api/scores")) {
       data = method === "POST" ? saveClubScore(JSON.parse(body || "{}")) : readClubScores();
       if (method === "POST") status = 201;

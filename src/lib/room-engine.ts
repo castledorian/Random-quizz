@@ -1,4 +1,4 @@
-import { ALL_PACKS, QUESTION_TIME, SHOP_ITEMS, type Question, type QuizPack, type RoomSnapshot, type RoomStatus } from "@/lib/game";
+import { ALL_PACKS, MAX_PLAYERS, QUESTION_TIME, SHOP_ITEMS, type Question, type QuizPack, type RoomSnapshot, type RoomStatus } from "@/lib/game";
 import { ApiError } from "@/lib/api-error";
 import { readCustomPacks } from "@/lib/local-store";
 
@@ -42,7 +42,7 @@ export function roomSnapshot(room: RoomState, hostToken?: string | null, playerT
     questionIndex: room.questionIndex, totalQuestions: room.questions.length,
     question: question ? {
       id: question.id, prompt: question.prompt, options: question.options, category: question.category,
-      ...(sendMedia ? { mediaUrl: question.mediaUrl } : {}), mediaType: question.mediaType,
+      ...(sendMedia ? { mediaUrl: question.mediaUrl } : {}), mediaType: question.mediaType, media: question.media,
       ...(reveal ? { correct: question.correct, explanation: question.explanation } : {}),
     } : null,
     startedAt: room.questionStartedAt ? new Date(room.questionStartedAt).toISOString() : null, remainingSeconds: room.remainingSeconds,
@@ -78,7 +78,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
       if (existing) return { result: { playerToken: existing.token, playerId: existing.id, profileId: existing.profileId, name: existing.name, avatar: existing.avatar, code: room.code }, changed: false };
     }
     if (room.status !== "lobby") throw new ApiError("La partie a déjà commencé. Demandez à l’hôte de rouvrir le salon.");
-    if (room.players.length >= 8) throw new ApiError("Le salon est complet : 8 joueurs maximum.");
+    if (room.players.length >= MAX_PLAYERS) throw new ApiError(`Le salon est complet : ${MAX_PLAYERS} joueurs maximum.`);
     const player: EnginePlayer = {
       id: uuid(), token: uuid(), profileId: isUuid(body.profileId) ? body.profileId : uuid(), name, avatar, score: 0, coins: 150,
       vote: null, doubleNext: false, shield: false, hint: false, joinedAt: now,
