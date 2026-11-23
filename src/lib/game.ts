@@ -60,9 +60,9 @@ const foodQuestions: Question[] = [
 ];
 
 export const PACKS: QuizPack[] = [
-  { id: "pop", title: "Pop culture", description: "Pour les pros de la référence.", image: asset("/images/covers/pop-culture.svg"), color: "#9b75ed", icon: "gamepad", questions: popQuestions },
-  { id: "world", title: "Tour du monde", description: "Le voyage, sans le décalage.", image: asset("/images/covers/world.svg"), color: "#5dcab2", icon: "globe", questions: worldQuestions },
-  { id: "food", title: "À table !", description: "À déguster sans modération.", image: asset("/images/covers/food.svg"), color: "#f4a66d", icon: "food", questions: foodQuestions },
+  { id: "pop", title: "Pop culture", description: "Pour les pros de la référence.", image: asset("/images/covers/pop-culture.webp"), color: "#9b75ed", icon: "gamepad", questions: popQuestions },
+  { id: "world", title: "Tour du monde", description: "Le voyage, sans le décalage.", image: asset("/images/covers/world.webp"), color: "#5dcab2", icon: "globe", questions: worldQuestions },
+  { id: "food", title: "À table !", description: "À déguster sans modération.", image: asset("/images/covers/food.webp"), color: "#f4a66d", icon: "food", questions: foodQuestions },
 ];
 export const MIX_PACK: QuizPack = {
   id: "mix", title: "Le grand mélange", description: "Un peu de tout, beaucoup de fun.", image: asset("/images/quiz-universe.svg"), color: "#c6f36b", icon: "sparkles",

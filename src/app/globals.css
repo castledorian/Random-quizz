@@ -185,3 +185,5 @@ html:has(.player-page),html:has(.player-page) body{overflow:hidden;overscroll-be
 .cover-reset{align-self:flex-start;font-size:13px}
 /* Vidéo YouTube : on cadre pour que la barre de titre du lecteur reste hors de l'image */
 .clip-layer.yt-crop iframe{position:absolute;left:0;top:-18%;width:100%;height:118%}
+/* Affiches : le sujet est à droite, on le garde visible même en format portrait */
+.theme-card>img,.library-card-art>img,.cover-tile>img,.start-pack-preview>img{object-position:72% 50%}
