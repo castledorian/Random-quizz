@@ -14,7 +14,102 @@ export type Question = {
   media?: QuestionMedia;
   /** Chrono en secondes : 0 = sans limite de temps, absent = 20 s. */
   time?: number;
+  /** Type de question (absent = choix multiple). */
+  type?: QType;
+  /** Plusieurs réponses : indices des bonnes réponses. */
+  corrects?: number[];
+  /** Réponse courte : réponses acceptées. */
+  answers?: string[];
+  /** Trouver un nombre : valeur attendue et marge acceptée. */
+  target?: number;
+  tolerance?: number;
 };
+
+export type QType = "choice" | "multi" | "truefalse" | "short" | "order" | "number" | "poll" | "scale" | "open";
+export type Answer = number | number[] | string;
+export const QTYPES: { id: QType; label: string; hint: string; scored: boolean }[] = [
+  { id: "choice", label: "Choix multiple", hint: "Une seule bonne réponse", scored: true },
+  { id: "multi", label: "Plusieurs réponses", hint: "Cocher toutes les bonnes", scored: true },
+  { id: "truefalse", label: "Vrai ou faux", hint: "Deux propositions", scored: true },
+  { id: "short", label: "Réponse courte", hint: "Le joueur tape sa réponse", scored: true },
+  { id: "order", label: "Remettre dans l’ordre", hint: "Classer des étapes, des dates", scored: true },
+  { id: "number", label: "Trouver un nombre", hint: "Avec une marge acceptée", scored: true },
+  { id: "poll", label: "Sondage", hint: "Tout le monde vote, sans points", scored: false },
+  { id: "scale", label: "Échelle", hint: "Une note de 1 à 5, sans points", scored: false },
+  { id: "open", label: "Question ouverte", hint: "Réponses libres au tableau, sans points", scored: false },
+];
+export const SCALE_MAX = 5;
+export const qtype = (q: { type?: QType }): QType => q.type ?? "choice";
+export const isScored = (q: { type?: QType }) => QTYPES.find(t => t.id === qtype(q))?.scored ?? true;
+/** Types dont les propositions s’affichent sous forme de grille. */
+export const hasGrid = (q: { type?: QType }) => ["choice", "multi", "truefalse", "poll", "order"].includes(qtype(q));
+/** Types où le joueur touche une seule proposition. */
+export const isSinglePick = (q: { type?: QType }) => ["choice", "truefalse", "poll"].includes(qtype(q));
+export function blankOptions(type: QType): string[] {
+  if (type === "truefalse") return ["Vrai", "Faux"];
+  if (type === "poll") return ["", ""];
+  if (type === "choice" || type === "multi" || type === "order") return ["", "", "", ""];
+  return [];
+}
+/** Ordre d’affichage mélangé (stable pour une même question). perm[affiché] = indice d’origine. */
+export function orderPerm(q: { id: string; options: string[] }): number[] {
+  const n = q.options.length, perm = Array.from({ length: n }, (_, i) => i);
+  let h = 2166136261;
+  for (const c of q.id) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  const rnd = () => { h = (h + 0x6d2b79f5) >>> 0; let t = Math.imul(h ^ (h >>> 15), 1 | h); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+  if (n > 1 && perm.every((v, i) => v === i)) perm.push(perm.shift()!);
+  return perm;
+}
+/** Propositions telles que le joueur les voit (mélangées pour « remettre dans l’ordre »). */
+export const displayOptions = (q: { id: string; type?: QType; options: string[] }) => qtype(q) === "order" ? orderPerm(q).map(i => q.options[i]) : q.options;
+/** Pour « remettre dans l’ordre » : indices affichés, dans le bon ordre. */
+export function orderSolution(q: { id: string; options: string[] }): number[] { const p = orderPerm(q); return p.map((_, k) => p.indexOf(k)); }
+export const normalizeText = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+export function parseNumber(text: string): number | null {
+  const t = text.trim().replace(/\s/g, "").replace(",", ".");
+  if (!t || !/^-?\d*\.?\d+$/.test(t)) return null;
+  const v = Number(t);
+  return Number.isFinite(v) ? v : null;
+}
+/** Vérifie la forme d’une réponse reçue et la normalise ; null si invalide. */
+export function sanitizeAnswer(q: Question, raw: unknown): Answer | null {
+  const int = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
+  const inRange = (v: unknown): v is number => int(v) && v >= 0 && v < q.options.length;
+  switch (qtype(q)) {
+    case "choice": case "truefalse": case "poll": return inRange(raw) ? raw : null;
+    case "scale": return int(raw) && raw >= 1 && raw <= SCALE_MAX ? raw : null;
+    case "multi": { if (!Array.isArray(raw) || !raw.length || !raw.every(inRange)) return null; return [...new Set(raw as number[])].sort((a, b) => a - b); }
+    case "order": { if (!Array.isArray(raw) || raw.length !== q.options.length || !raw.every(inRange) || new Set(raw).size !== raw.length) return null; return raw as number[]; }
+    case "number": return typeof raw === "number" && Number.isFinite(raw) && Math.abs(raw) < 1e12 ? raw : null;
+    case "short": case "open": { if (typeof raw !== "string") return null; const t = raw.trim().slice(0, 120); return t || null; }
+  }
+}
+/** true = juste, false = faux, null = question sans bonne réponse. */
+export function gradeAnswer(q: Question, a: Answer): boolean | null {
+  switch (qtype(q)) {
+    case "choice": case "truefalse": return a === q.correct;
+    case "multi": { const c = [...(q.corrects ?? [])].sort((x, y) => x - y), m = a as number[]; return c.length === m.length && c.every((v, i) => v === m[i]); }
+    case "order": { const p = orderPerm(q); return (a as number[]).every((d, i) => p[d] === i); }
+    case "short": { const n = normalizeText(a as string); return (q.answers ?? []).some(x => normalizeText(x) === n); }
+    case "number": return Math.abs((a as number) - (q.target ?? 0)) <= (q.tolerance ?? 0) + 1e-9;
+    default: return null;
+  }
+}
+export type SnapshotQuestion = Omit<Question, "correct" | "explanation" | "corrects" | "answers" | "target" | "tolerance"> & Partial<Pick<Question, "correct" | "explanation" | "corrects" | "answers" | "target" | "tolerance">> & { solution?: number[] };
+/** Phrase qui annonce la solution (hôte, joueur, solo). */
+export function solutionText(q: SnapshotQuestion): string {
+  const opt = (i: number) => q.options[i] ?? "";
+  switch (qtype(q)) {
+    case "choice": case "truefalse": return `C’était bien ${opt(q.correct ?? 0)} !`;
+    case "multi": return `Les bonnes réponses : ${(q.corrects ?? []).map(opt).join(", ")}.`;
+    case "order": return `Le bon ordre : ${(q.solution ?? []).map(opt).join(" → ")}.`;
+    case "short": return `Réponse attendue : ${(q.answers ?? [])[0] ?? ""}${(q.answers?.length ?? 0) > 1 ? ` (ou ${q.answers!.slice(1).join(", ")})` : ""}.`;
+    case "number": return `La réponse : ${new Intl.NumberFormat("fr-FR").format(q.target ?? 0)}${q.tolerance ? ` (à ± ${new Intl.NumberFormat("fr-FR").format(q.tolerance)} près)` : ""}.`;
+    default: return "Merci pour vos réponses !";
+  }
+}
+export type QuestionStats = { total: number; right?: number; counts?: number[]; texts?: { name: string; avatar: number; text: string; ok: boolean | null }[]; avg?: number };
 
 export type QuestionMedia = { kind: "photo" | "video" | "music"; url: string; start?: number; end?: number; /** Fondu sonore au début et à la fin (activé par défaut). */ fade?: boolean };
 export type ClipSource = { type: "youtube"; id: string } | { type: "file"; url: string };
@@ -79,7 +174,11 @@ export type RoomPlayer = { id: string; name: string; avatar: number; score: numb
 export type RoomStatus = "lobby" | "playing" | "paused" | "revealed" | "finished";
 export type RoomSnapshot = {
   code: string; status: RoomStatus; packId: string; packTitle: string; questionIndex: number; totalQuestions: number;
-  question: (Omit<Question, "correct" | "explanation"> & { correct?: number; explanation?: string }) | null;
+  question: SnapshotQuestion | null;
+  /** Résultats agrégés, une fois la question révélée. */
+  stats?: QuestionStats;
+  /** Votre réponse et vos points, une fois la question révélée. */
+  mine?: { right: boolean | null; points: number; answer: Answer };
   startedAt: string | null; remainingSeconds: number; players: RoomPlayer[]; answerCount: number;
   shopEnabled: boolean; votingEnabled: boolean; eliminated: number[];
   /** Durée de la question en secondes (0 = sans limite). */
@@ -151,11 +250,27 @@ export function validMedia(m: unknown): m is QuestionMedia {
   return true;
 }
 
+function validShape(q: Record<string, unknown>): boolean {
+  const type = (q.type ?? "choice") as QType;
+  if (!QTYPES.some(t => t.id === type)) return false;
+  const options = q.options as unknown;
+  if (!Array.isArray(options) || !options.every(o => typeof o === "string" && o.trim().length > 0 && o.length <= 180)) return false;
+  const int = (v: unknown, max: number) => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max;
+  switch (type) {
+    case "choice": return options.length === 4 && int(q.correct, 3);
+    case "truefalse": return options.length === 2 && int(q.correct, 1);
+    case "multi": return options.length === 4 && Array.isArray(q.corrects) && q.corrects.length >= 1 && q.corrects.every(v => int(v, 3)) && new Set(q.corrects).size === q.corrects.length;
+    case "order": return options.length === 4;
+    case "poll": return options.length >= 2 && options.length <= 6;
+    case "short": return options.length === 0 && Array.isArray(q.answers) && q.answers.length >= 1 && q.answers.length <= 8 && q.answers.every(a => typeof a === "string" && a.trim().length > 0 && a.length <= 120);
+    case "number": return options.length === 0 && typeof q.target === "number" && Number.isFinite(q.target) && Math.abs(q.target) < 1e12 && (q.tolerance === undefined || (typeof q.tolerance === "number" && Number.isFinite(q.tolerance) && q.tolerance >= 0 && q.tolerance < 1e12));
+    default: return options.length === 0;
+  }
+}
 export function validateQuestions(value: unknown): value is Question[] {
   return Array.isArray(value) && value.length > 0 && value.length <= 30 && value.every(q =>
     q && typeof q.id === "string" && typeof q.prompt === "string" && q.prompt.trim().length > 2 && q.prompt.length <= 500 &&
-    Array.isArray(q.options) && q.options.length === 4 && q.options.every((o: unknown) => typeof o === "string" && o.trim().length > 0 && o.length <= 180) &&
-    Number.isInteger(q.correct) && q.correct >= 0 && q.correct <= 3 && typeof q.explanation === "string" && typeof q.category === "string" &&
+    validShape(q) && typeof q.explanation === "string" && typeof q.category === "string" &&
     (q.media === undefined || validMedia(q.media)) &&
     (q.time === undefined || (Number.isInteger(q.time) && q.time >= 0 && q.time <= 600)) &&
     (!q.mediaUrl || (typeof q.mediaUrl === "string" && q.mediaUrl.length <= 4000000 && /^data:(image\/(png|jpeg|webp|gif)|audio\/(mpeg|mp3|wav|ogg|x-wav));base64,/.test(q.mediaUrl)))

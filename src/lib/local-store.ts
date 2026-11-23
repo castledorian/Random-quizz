@@ -19,7 +19,7 @@ export function readCustomPacks(): QuizPack[] { return read<StoredPack>(PACKS_KE
 function cleanPack(body: Record<string, unknown>, keepId?: string): StoredPack {
   const title = body.title;
   if (typeof title !== "string" || title.trim().length < 3 || title.length > 80) throw new ApiError("Le titre doit contenir entre 3 et 80 caractères.");
-  if (!validateQuestions(body.questions)) throw new ApiError("Chaque question doit avoir un énoncé, quatre réponses et une bonne réponse. Vérifiez aussi les liens des médias (YouTube, début et fin).");
+  if (!validateQuestions(body.questions)) throw new ApiError("Chaque question doit avoir un énoncé et des réponses complètes (selon son type). Vérifiez aussi les liens des médias (YouTube, début et fin).");
   return {
     id: keepId ?? crypto.randomUUID(), title: title.trim(),
     description: typeof body.description === "string" && body.description.trim() ? body.description.trim().slice(0, 200) : "Créé avec amour, joué entre amis.",

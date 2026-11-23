@@ -1,4 +1,4 @@
-import { ALL_PACKS, MAX_PLAYERS, QUESTION_TIME, questionTime, SHOP_ITEMS, type Question, type QuizPack, type RoomSnapshot, type RoomStatus } from "@/lib/game";
+import { ALL_PACKS, displayOptions, gradeAnswer, isScored, MAX_PLAYERS, orderSolution, QUESTION_TIME, qtype, questionTime, sanitizeAnswer, SHOP_ITEMS, type Answer, type Question, type QuestionStats, type QuizPack, type RoomSnapshot, type RoomStatus } from "@/lib/game";
 import { ApiError } from "@/lib/api-error";
 import { readCustomPacks } from "@/lib/local-store";
 import { ensureProfile, recordGame, resolveProfileId, syncWallets } from "@/lib/profiles";
@@ -18,6 +18,8 @@ export type RoomState = {
   code: string; hostToken: string; status: RoomStatus; packId: string; packTitle: string; questions: Question[];
   questionIndex: number; questionStartedAt: number | null; remainingSeconds: number;
   shopEnabled: boolean; votingEnabled: boolean; players: EnginePlayer[]; answered: string[];
+  /** Réponses de la partie en cours (clé : joueur:question). Absent dans les anciennes sauvegardes. */
+  responses?: Record<string, { answer: Answer; right: boolean | null; points: number }>;
 };
 export type RpcRequest = { id: string; method: "GET" | "POST"; url: string; headers: Record<string, string>; body?: string };
 export type RpcResponse = { id: string; status: number; data: unknown; serverTime: number };
@@ -27,24 +29,46 @@ const uuid = () => crypto.randomUUID();
 export function newRoomState(code: string, questions: Question[], packTitle: string): RoomState {
   return {
     code, hostToken: uuid(), status: "lobby", packId: "mix", packTitle, questions, questionIndex: 0, questionStartedAt: null,
-    remainingSeconds: QUESTION_TIME, shopEnabled: true, votingEnabled: true, players: [], answered: [],
+    remainingSeconds: QUESTION_TIME, shopEnabled: true, votingEnabled: true, players: [], answered: [], responses: {},
   };
+}
+
+function buildStats(room: RoomState, question: Question): QuestionStats {
+  const t = qtype(question);
+  const rows = room.players.map(p => ({ p, r: room.responses?.[`${p.id}:${room.questionIndex}`] })).filter((x): x is { p: EnginePlayer; r: NonNullable<typeof x.r> } => !!x.r);
+  const stats: QuestionStats = { total: rows.length };
+  if (isScored(question)) stats.right = rows.filter(x => x.r.right).length;
+  if (t === "choice" || t === "truefalse" || t === "poll") { const c = question.options.map(() => 0); rows.forEach(x => { c[x.r.answer as number]++; }); stats.counts = c; }
+  if (t === "multi") { const c = question.options.map(() => 0); rows.forEach(x => (x.r.answer as number[]).forEach(i => { c[i]++; })); stats.counts = c; }
+  if (t === "scale") { const c = [0, 0, 0, 0, 0]; rows.forEach(x => { c[(x.r.answer as number) - 1]++; }); stats.counts = c; stats.avg = rows.length ? rows.reduce((n, x) => n + (x.r.answer as number), 0) / rows.length : 0; }
+  if (t === "short" || t === "open" || t === "number") stats.texts = rows.map(x => ({ name: x.p.name, avatar: x.p.avatar, text: String(x.r.answer), ok: x.r.right }));
+  return stats;
 }
 
 export function roomSnapshot(room: RoomState, hostToken?: string | null, playerToken?: string | null, omitMediaFor?: string | null): RoomSnapshot {
   const question = room.questions[room.questionIndex];
-  const reveal = room.hostToken === hostToken || room.status === "revealed" || room.status === "finished";
+  const revealed = room.status === "revealed" || room.status === "finished";
+  const reveal = room.hostToken === hostToken || revealed;
   const me = room.players.find(p => p.token === playerToken);
   const key = (id: string) => `${id}:${room.questionIndex}`;
   const answered = new Set(room.answered);
   const sendMedia = question && question.mediaUrl && question.id !== omitMediaFor;
+  const mine = revealed && me && question ? room.responses?.[key(me.id)] : undefined;
+  const t = question ? qtype(question) : "choice";
   return {
     code: room.code, status: room.status, packId: room.packId, packTitle: room.packTitle,
     questionIndex: room.questionIndex, totalQuestions: room.questions.length,
     question: question ? {
-      id: question.id, prompt: question.prompt, options: question.options, category: question.category,
+      id: question.id, prompt: question.prompt, options: displayOptions(question), category: question.category, type: question.type,
       ...(sendMedia ? { mediaUrl: question.mediaUrl } : {}), mediaType: question.mediaType, media: question.media,
-      ...(reveal ? { correct: question.correct, explanation: question.explanation } : {}),
+      ...(reveal ? {
+        explanation: question.explanation,
+        ...(t === "choice" || t === "truefalse" ? { correct: question.correct } : {}),
+        ...(t === "multi" ? { corrects: question.corrects } : {}),
+        ...(t === "short" ? { answers: question.answers } : {}),
+        ...(t === "number" ? { target: question.target, tolerance: question.tolerance } : {}),
+        ...(t === "order" ? { solution: orderSolution(question) } : {}),
+      } : {}),
     } : null,
     startedAt: room.questionStartedAt ? new Date(room.questionStartedAt).toISOString() : null, remainingSeconds: room.remainingSeconds,
     players: [...room.players].sort((a, b) => a.joinedAt - b.joinedAt).map(p => ({
@@ -55,7 +79,9 @@ export function roomSnapshot(room: RoomState, hostToken?: string | null, playerT
     shopEnabled: room.shopEnabled, votingEnabled: room.votingEnabled,
     timeLimit: question ? questionTime(question) : QUESTION_TIME,
     ...(room.hostToken === hostToken ? { upcomingMedia: room.questions[room.questionIndex + 1]?.media ?? null } : {}),
-    eliminated: me?.hint && question ? question.options.map((_, i) => i).filter(i => i !== question.correct).slice(0, 2) : [],
+    ...(revealed && question ? { stats: buildStats(room, question) } : {}),
+    ...(mine ? { mine } : {}),
+    eliminated: me?.hint && question && t === "choice" ? question.options.map((_, i) => i).filter(i => i !== question.correct).slice(0, 2) : [],
   };
 }
 
@@ -103,7 +129,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     }
     const pack = findPack(packId);
     if (!pack) throw new ApiError("Ce quiz n’existe plus.");
-    room.answered = [];
+    room.answered = []; room.responses = {};
     room.players.forEach(p => { p.score = 0; p.correct = 0; p.doubleNext = false; p.shield = false; p.hint = false; });
     Object.assign(room, { status: "playing", packId: pack.id, packTitle: pack.title, questions: pack.questions, questionIndex: 0, remainingSeconds: questionTime(pack.questions[0]), questionStartedAt: now });
   } else if (action === "pause") {
@@ -122,7 +148,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     if (room.status !== "revealed") throw new ApiError("Révélez d’abord la bonne réponse.");
     if (room.questionIndex >= room.questions.length - 1) {
       Object.assign(room, { status: "finished", questionStartedAt: null });
-      recordGame(room.players.map(p => ({ ...p, correct: p.correct ?? 0 })), room.questions.length);
+      recordGame(room.players.map(p => ({ ...p, correct: p.correct ?? 0 })), room.questions.filter(isScored).length || 1);
     } else {
       room.players.forEach(p => { p.hint = false; });
       Object.assign(room, { status: "playing", questionIndex: room.questionIndex + 1, questionStartedAt: now, remainingSeconds: questionTime(room.questions[room.questionIndex + 1]) });
@@ -156,6 +182,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
       if (!item) throw new ApiError("Ce bonus n’existe pas.");
       const field = item.id === "double" ? "doubleNext" : item.id === "hint" ? "hint" : "shield";
       if (player[field]) throw new ApiError("Ce bonus est déjà actif !");
+      if (item.id === "hint" && room.status === "playing" && qtype(room.questions[room.questionIndex]) !== "choice") throw new ApiError("Le 50 / 50 ne fonctionne que sur les choix multiples.");
       if (player.coins < item.price) throw new ApiError("Il vous manque quelques pièces.");
       if (room.answered.includes(answerKey) && room.status === "playing") throw new ApiError("Vous avez déjà répondu. Gardez ce bonus pour la prochaine question.");
       player.coins -= item.price; player[field] = true;
@@ -165,14 +192,15 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
       const limit = questionTime(question);
       const remaining = room.remainingSeconds - (now - room.questionStartedAt) / 1000;
       if (limit > 0 && remaining <= 0) throw new ApiError("Trop tard, le temps est écoulé !");
-      const answerIndex = body.answerIndex;
-      if (typeof answerIndex !== "number" || !Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex > 3) throw new ApiError("Réponse invalide.");
+      const answer = sanitizeAnswer(question, body.answer !== undefined ? body.answer : body.answerIndex);
+      if (answer === null) throw new ApiError("Réponse invalide.");
       if (room.answered.includes(answerKey)) throw new ApiError("Votre réponse est déjà enregistrée.");
-      const right = answerIndex === question.correct;
-      const points = right ? Math.round((500 + (limit > 0 ? Math.min(1, remaining / limit) : 0.5) * 500) * (player.doubleNext ? 2 : 1)) : player.shield ? 150 : 0;
+      const right = gradeAnswer(question, answer);
+      const points = right === null ? 0 : right ? Math.round((500 + (limit > 0 ? Math.min(1, remaining / limit) : 0.5) * 500) * (player.doubleNext ? 2 : 1)) : player.shield ? 150 : 0;
       room.answered.push(answerKey);
-      player.score += points; player.coins += right ? 80 : 10; player.doubleNext = false; if (right) player.correct = (player.correct ?? 0) + 1;
-      if (!right) player.shield = false;
+      (room.responses ??= {})[answerKey] = { answer, right, points };
+      player.score += points; player.coins += right ? 80 : 10;
+      if (right !== null) { player.doubleNext = false; if (right) player.correct = (player.correct ?? 0) + 1; else player.shield = false; }
     }
   } else {
     throw new ApiError("Commande inconnue.");
