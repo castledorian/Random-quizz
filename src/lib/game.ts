@@ -1,3 +1,5 @@
+import { asset } from "@/lib/base";
+
 export type Question = {
   id: string;
   prompt: string;
@@ -46,12 +48,12 @@ const foodQuestions: Question[] = [
 ];
 
 export const PACKS: QuizPack[] = [
-  { id: "pop", title: "Pop culture", description: "Pour les pros de la référence.", image: "/images/pop-culture.png", color: "#9b75ed", icon: "gamepad", questions: popQuestions },
-  { id: "world", title: "Tour du monde", description: "Le voyage, sans le décalage.", image: "/images/world.png", color: "#5dcab2", icon: "globe", questions: worldQuestions },
-  { id: "food", title: "À table !", description: "À déguster sans modération.", image: "/images/food.png", color: "#f4a66d", icon: "food", questions: foodQuestions },
+  { id: "pop", title: "Pop culture", description: "Pour les pros de la référence.", image: asset("/images/pop-culture.svg"), color: "#9b75ed", icon: "gamepad", questions: popQuestions },
+  { id: "world", title: "Tour du monde", description: "Le voyage, sans le décalage.", image: asset("/images/world.svg"), color: "#5dcab2", icon: "globe", questions: worldQuestions },
+  { id: "food", title: "À table !", description: "À déguster sans modération.", image: asset("/images/food.svg"), color: "#f4a66d", icon: "food", questions: foodQuestions },
 ];
 export const MIX_PACK: QuizPack = {
-  id: "mix", title: "Le grand mélange", description: "Un peu de tout, beaucoup de fun.", image: "/images/quiz-universe.png", color: "#c6f36b", icon: "sparkles",
+  id: "mix", title: "Le grand mélange", description: "Un peu de tout, beaucoup de fun.", image: asset("/images/quiz-universe.svg"), color: "#c6f36b", icon: "sparkles",
   questions: [popQuestions[0], worldQuestions[0], foodQuestions[0], popQuestions[2], worldQuestions[2], foodQuestions[4]],
 };
 export const ALL_PACKS = [MIX_PACK, ...PACKS];

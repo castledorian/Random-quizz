@@ -1,10 +1,35 @@
 import type { HighScore } from "@/lib/game";
 import { HIGH_SCORE_KEY } from "@/lib/game";
+import { readClubScores, readCustomPacks, saveClubScore, saveCustomPack } from "@/lib/local-store";
+import { roomsApi } from "@/lib/p2p";
+import { ApiError } from "@/lib/api-error";
 
+/**
+ * Les « routes » /api/* s'exécutent désormais dans le navigateur :
+ * quiz et scores en stockage local, salons en direct entre appareils (WebRTC).
+ */
 export async function api<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...options?.headers }, cache: "no-store" });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Une petite interruption… Réessayez !");
+  const method = (options?.method || "GET").toUpperCase() === "POST" ? "POST" : "GET";
+  const headers: Record<string, string> = {};
+  new Headers(options?.headers).forEach((value, key) => { headers[key.toLowerCase()] = value; });
+  const body = typeof options?.body === "string" ? options.body : undefined;
+  let status = 200; let data: unknown;
+  try {
+    if (url.startsWith("/api/rooms")) {
+      ({ status, data } = await roomsApi(method, url, headers, body));
+    } else if (url.startsWith("/api/quizzes")) {
+      data = method === "POST" ? saveCustomPack(JSON.parse(body || "{}")) : readCustomPacks();
+      if (method === "POST") status = 201;
+    } else if (url.startsWith("/api/scores")) {
+      data = method === "POST" ? saveClubScore(JSON.parse(body || "{}")) : readClubScores();
+      if (method === "POST") status = 201;
+    } else throw new ApiError("Cette page n’existe pas.", 404);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error instanceof SyntaxError) throw new Error("La requête n’est pas valide.");
+    throw new Error("Une petite interruption… Réessayez !");
+  }
+  if (status >= 400) throw new Error((data as { error?: string })?.error || "Une petite interruption… Réessayez !");
   return data as T;
 }
 export function readHighScores(): HighScore[] {

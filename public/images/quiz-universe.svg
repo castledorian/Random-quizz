@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+<defs>
+<radialGradient id="bg" cx="68%" cy="45%" r="75%"><stop offset="0" stop-color="#4b2f9e"/><stop offset=".55" stop-color="#241a4d"/><stop offset="1" stop-color="#12101f"/></radialGradient>
+<radialGradient id="orb" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#c9aefc"/><stop offset=".5" stop-color="#8d63ea"/><stop offset="1" stop-color="#4a2d9c"/></radialGradient>
+<linearGradient id="ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9ff8a"/><stop offset="1" stop-color="#9fd43a"/></linearGradient>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<g fill="#fff" opacity=".7"><circle cx="120" cy="140" r="2.5"/><circle cx="380" cy="70" r="1.8"/><circle cx="640" cy="210" r="2.2"/><circle cx="900" cy="90" r="1.6"/><circle cx="1180" cy="170" r="2.6"/><circle cx="1450" cy="80" r="2"/><circle cx="200" cy="700" r="2"/><circle cx="520" cy="820" r="1.8"/><circle cx="1320" cy="760" r="2.4"/><circle cx="1500" cy="520" r="1.6"/></g>
+<ellipse cx="1180" cy="470" rx="470" ry="120" fill="none" stroke="#c6f36b" stroke-opacity=".12" stroke-width="2" transform="rotate(-14 1180 470)"/>
+<path d="M730 520 A450 112 -14 0 1 1180 405" fill="none" stroke="url(#ring)" stroke-width="22" stroke-linecap="round" opacity=".95" transform="rotate(0)"/>
+<circle cx="1180" cy="450" r="215" fill="url(#orb)"/>
+<circle cx="1120" cy="380" r="215" fill="#fff" opacity=".05"/>
+<text x="1180" y="535" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="300" fill="#f4eeff" opacity=".95">?</text>
+<path d="M1630 330 A470 118 -14 0 1 1060 548" fill="none" stroke="url(#ring)" stroke-width="22" stroke-linecap="round" transform="rotate(0)" opacity="0"/>
+<path d="M1395 500 A450 112 -14 0 1 1000 555" fill="none" stroke="url(#ring)" stroke-width="22" stroke-linecap="round"/>
+<g fill="#c6f36b"><path d="M1480 220 l12 30 30 12 -30 12 -12 30 -12 -30 -30 -12 30 -12z"/><path d="M820 700 l8 20 20 8 -20 8 -8 20 -8 -20 -20 -8 20 -8z" opacity=".8"/></g>
+</svg>
