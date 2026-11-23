@@ -1,6 +1,7 @@
 import { ALL_PACKS, MAX_PLAYERS, QUESTION_TIME, questionTime, SHOP_ITEMS, type Question, type QuizPack, type RoomSnapshot, type RoomStatus } from "@/lib/game";
 import { ApiError } from "@/lib/api-error";
 import { readCustomPacks } from "@/lib/local-store";
+import { ensureProfile, recordGame, resolveProfileId, syncWallets } from "@/lib/profiles";
 
 /**
  * Moteur de salle exécuté dans le navigateur de l'hôte.
@@ -11,7 +12,7 @@ export const isUuid = (value: unknown): value is string => typeof value === "str
 
 export type EnginePlayer = {
   id: string; token: string; profileId: string; name: string; avatar: number; score: number; coins: number;
-  vote: string | null; doubleNext: boolean; shield: boolean; hint: boolean; joinedAt: number;
+  vote: string | null; doubleNext: boolean; shield: boolean; hint: boolean; joinedAt: number; correct: number;
 };
 export type RoomState = {
   code: string; hostToken: string; status: RoomStatus; packId: string; packTitle: string; questions: Question[];
@@ -79,11 +80,15 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
       const existing = room.players.find(p => p.token === playerToken);
       if (existing) return { result: { playerToken: existing.token, playerId: existing.id, profileId: existing.profileId, name: existing.name, avatar: existing.avatar, code: room.code }, changed: false };
     }
+    const profileId = isUuid(body.profileId) ? resolveProfileId(body.profileId) : uuid();
+    const same = room.players.find(p => p.profileId === profileId);
+    if (same) return { result: { playerToken: same.token, playerId: same.id, profileId: same.profileId, name: same.name, avatar: same.avatar, code: room.code }, changed: false };
     if (room.status !== "lobby") throw new ApiError("La partie a déjà commencé. Demandez à l’hôte de rouvrir le salon.");
     if (room.players.length >= MAX_PLAYERS) throw new ApiError(`Le salon est complet : ${MAX_PLAYERS} joueurs maximum.`);
+    const wallet = ensureProfile(profileId, name, avatar).coins;
     const player: EnginePlayer = {
-      id: uuid(), token: uuid(), profileId: isUuid(body.profileId) ? body.profileId : uuid(), name, avatar, score: 0, coins: 150,
-      vote: null, doubleNext: false, shield: false, hint: false, joinedAt: now,
+      id: uuid(), token: uuid(), profileId, name, avatar, score: 0, coins: wallet,
+      vote: null, doubleNext: false, shield: false, hint: false, joinedAt: now, correct: 0,
     };
     room.players.push(player);
     return { result: { playerToken: player.token, playerId: player.id, profileId: player.profileId, name: player.name, avatar: player.avatar, code: room.code }, changed: true };
@@ -99,7 +104,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     const pack = findPack(packId);
     if (!pack) throw new ApiError("Ce quiz n’existe plus.");
     room.answered = [];
-    room.players.forEach(p => { p.score = 0; p.coins = 150; p.doubleNext = false; p.shield = false; p.hint = false; });
+    room.players.forEach(p => { p.score = 0; p.correct = 0; p.doubleNext = false; p.shield = false; p.hint = false; });
     Object.assign(room, { status: "playing", packId: pack.id, packTitle: pack.title, questions: pack.questions, questionIndex: 0, remainingSeconds: questionTime(pack.questions[0]), questionStartedAt: now });
   } else if (action === "pause") {
     if (room.status !== "playing") throw new ApiError("La partie n’est pas en cours.");
@@ -117,6 +122,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     if (room.status !== "revealed") throw new ApiError("Révélez d’abord la bonne réponse.");
     if (room.questionIndex >= room.questions.length - 1) {
       Object.assign(room, { status: "finished", questionStartedAt: null });
+      recordGame(room.players.map(p => ({ ...p, correct: p.correct ?? 0 })), room.questions.length);
     } else {
       room.players.forEach(p => { p.hint = false; });
       Object.assign(room, { status: "playing", questionIndex: room.questionIndex + 1, questionStartedAt: now, remainingSeconds: questionTime(room.questions[room.questionIndex + 1]) });
@@ -126,9 +132,9 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     room.players.forEach(p => { p.vote = null; });
   } else if (action === "award") {
     const amount = body.amount;
-    if (!isUuid(body.playerId) || typeof amount !== "number" || !Number.isInteger(amount) || Math.abs(amount) > 1000) throw new ApiError("Ajustement de points invalide.");
+    if (!isUuid(body.playerId) || typeof amount !== "number" || !Number.isInteger(amount) || Math.abs(amount) > 1_000_000) throw new ApiError("Ajustement invalide.");
     const player = room.players.find(p => p.id === body.playerId);
-    if (player) player.score = Math.max(0, player.score + amount);
+    if (player) { if (body.field === "coins") player.coins = Math.max(0, player.coins + amount); else player.score = Math.max(0, player.score + amount); }
   } else if (action === "kick") {
     if (!isUuid(body.playerId)) throw new ApiError("Joueur invalide.");
     room.players = room.players.filter(p => p.id !== body.playerId);
@@ -165,7 +171,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
       const right = answerIndex === question.correct;
       const points = right ? Math.round((500 + (limit > 0 ? Math.min(1, remaining / limit) : 0.5) * 500) * (player.doubleNext ? 2 : 1)) : player.shield ? 150 : 0;
       room.answered.push(answerKey);
-      player.score += points; player.coins += right ? 80 : 10; player.doubleNext = false;
+      player.score += points; player.coins += right ? 80 : 10; player.doubleNext = false; if (right) player.correct = (player.correct ?? 0) + 1;
       if (!right) player.shield = false;
     }
   } else {
@@ -190,7 +196,7 @@ export function handleRoomRequest(room: RoomState, req: RpcRequest, persist: (ro
     let body: Record<string, unknown>;
     try { body = req.body ? JSON.parse(req.body) : {}; } catch { throw new ApiError("La requête n’est pas valide."); }
     const { result, changed } = applyAction(room, body.action, body, hostToken, playerToken);
-    if (changed) persist(room);
+    if (changed) { syncWallets(room.players.map(p => ({ ...p, correct: p.correct ?? 0 }))); persist(room); }
     return { status: 200, data: result ?? roomSnapshot(room, hostToken, playerToken, omitMediaFor) };
   } catch (error) {
     if (error instanceof ApiError) return { status: error.status, data: { error: error.message } };

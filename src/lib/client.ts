@@ -2,6 +2,7 @@ import type { HighScore } from "@/lib/game";
 import { HIGH_SCORE_KEY } from "@/lib/game";
 import { deleteCustomPack, importBackup, readClubScores, readCustomPacks, saveClubScore, saveCustomPack } from "@/lib/local-store";
 import { roomsApi } from "@/lib/p2p";
+import { listProfiles, profilesAction } from "@/lib/profiles";
 import { ApiError } from "@/lib/api-error";
 
 /**
@@ -23,6 +24,8 @@ export async function api<T>(url: string, options?: RequestInit): Promise<T> {
         data = payload.action === "delete" ? deleteCustomPack(payload.id) : payload.action === "import" ? importBackup(payload) : saveCustomPack(payload);
         status = payload.action ? 200 : 201;
       } else data = readCustomPacks();
+    } else if (url.startsWith("/api/profiles")) {
+      data = method === "POST" ? profilesAction(JSON.parse(body || "{}")) : listProfiles();
     } else if (url.startsWith("/api/scores")) {
       data = method === "POST" ? saveClubScore(JSON.parse(body || "{}")) : readClubScores();
       if (method === "POST") status = 201;

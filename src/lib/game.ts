@@ -87,6 +87,7 @@ export type RoomSnapshot = {
   /** Média de la question suivante, réservé à l’hôte : permet de le précharger. */
   upcomingMedia?: QuestionMedia | null;
 };
+export type ClubProfile = { id: string; name: string; avatar: number; coins: number; gamesPlayed: number; wins: number; totalScore: number; bestScore: number; correct: number; answered: number; firstSeen: string; lastSeen: string };
 export type HostSession = { code: string; hostToken: string };
 export type PlayerSession = { code: string; playerToken: string; playerId: string; profileId: string; name: string; avatar: number };
 

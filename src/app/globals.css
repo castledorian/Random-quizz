@@ -188,3 +188,34 @@ html:has(.player-page),html:has(.player-page) body{overflow:hidden;overscroll-be
 /* Affiches : le sujet est à droite, on le garde visible même en format portrait */
 .theme-card>img,.library-card-art>img,.cover-tile>img,.start-pack-preview>img{object-position:72% 50%}
 .nav-install{color:var(--lime)!important}
+
+/* ───── Joueurs du club ───── */
+.players-table .score-table-header,.players-table .score-table-row{grid-template-columns:40px minmax(150px,1.6fr) 70px 110px 90px 110px}
+.players-table .score-table-row{width:100%;text-align:left;background:none;color:inherit;cursor:pointer;font-size:13px}
+.players-table .score-table-row:hover{background:#ffffff05}
+.players-table .score-table-header{font-size:10px}
+.players-table .score-player small{font-size:11px}
+.score-coins{display:flex;align-items:center;gap:5px;color:#f2c14e;font-weight:600}
+.player-manage{display:flex;flex-direction:column;gap:14px;padding:16px 22px 20px;background:#1b1725;border-top:1px solid #ffffff08}
+.player-manage-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.player-manage-row .text-input{flex:1;min-width:120px;max-width:340px}
+.player-manage-row .button{gap:6px;font-size:13px}
+.danger-text{color:#f0a0a0!important}
+@media(max-width:700px){.players-table .score-table-header,.players-table .score-table-row{grid-template-columns:26px minmax(110px,1fr) 44px 64px 70px;gap:8px;padding:12px}.players-table .score-table-header>span:nth-child(4),.players-table .score-table-row>.score-accuracy{display:none}}
+/* ───── Ajustement points / pièces ───── */
+.adjust-input{font-size:22px;font-weight:700;text-align:center}
+.adjust-presets{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 18px}
+.adjust-presets button{flex:1;padding:9px 6px;border:1px solid #b69ae82a;background:#b69ae80a;border-radius:10px;color:#bda9cc;font-size:13px}
+.adjust-presets button.active{border-color:var(--lime);color:var(--lime)}
+.adjust-grid{display:grid;grid-template-columns:70px 1fr 1fr;gap:10px;align-items:center}
+.adjust-grid>span{font-size:14px;font-weight:600;color:#d8c6e6}
+.adjust-grid .button{gap:6px;justify-content:center}
+.lobby-player{cursor:pointer}
+/* ───── Éditeur : page « Infos du quiz » ───── */
+.editor-info-tab{display:flex;align-items:center;gap:10px;width:100%;padding:12px;border:1px solid #b69ae82a;border-radius:10px;background:#b69ae80a;color:#d8c6e6;text-align:left;margin:0 0 14px}
+.editor-info-tab.active{border-color:var(--lime);background:#c6f36b10;color:var(--lime)}
+.editor-info-tab img,.editor-info-tab .cover-fallback{width:46px;height:30px;border-radius:6px;object-fit:cover;flex:none;font-size:16px}
+.editor-info-tab span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.editor-info-tab strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.editor-info-tab small{font-size:11px;color:#9a86aa}
+.editor-next{align-self:flex-start;gap:8px}
