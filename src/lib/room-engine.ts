@@ -18,6 +18,8 @@ export type RoomState = {
   code: string; hostToken: string; status: RoomStatus; packId: string; packTitle: string; questions: Question[];
   questionIndex: number; questionStartedAt: number | null; remainingSeconds: number;
   shopEnabled: boolean; votingEnabled: boolean; players: EnginePlayer[]; answered: string[];
+  /** Vidéos et musiques sur les téléphones (absent = activé). */
+  phoneMedia?: boolean;
   /** Réponses de la partie en cours (clé : joueur:question). Absent dans les anciennes sauvegardes. */
   responses?: Record<string, { answer: Answer; right: boolean | null; points: number }>;
   /** Profils retirés par l’hôte (ne peuvent pas revenir) et jetons des joueurs retirés. */
@@ -80,7 +82,7 @@ export function roomSnapshot(room: RoomState, hostToken?: string | null, playerT
       hasAnswered: answered.has(key(p.id)), doubleNext: p.doubleNext, shield: p.shield, hint: p.hint,
     })),
     answerCount: room.players.filter(p => answered.has(key(p.id))).length,
-    shopEnabled: room.shopEnabled, votingEnabled: room.votingEnabled,
+    shopEnabled: room.shopEnabled, votingEnabled: room.votingEnabled, phoneMedia: room.phoneMedia !== false,
     timeLimit: question ? questionTime(question) : QUESTION_TIME,
     ...(room.hostToken === hostToken ? { upcomingMedia: room.questions[room.questionIndex + 1]?.media ?? null } : {}),
     ...(revealed && question ? { stats: buildStats(room, question) } : {}),
@@ -175,6 +177,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
   } else if (action === "settings") {
     if (typeof body.shopEnabled === "boolean") room.shopEnabled = body.shopEnabled;
     if (typeof body.votingEnabled === "boolean") room.votingEnabled = body.votingEnabled;
+    if (typeof body.phoneMedia === "boolean") room.phoneMedia = body.phoneMedia;
   } else if (action === "answer" || action === "vote" || action === "buy") {
     if (!isUuid(playerToken)) throw new ApiError("Rejoignez d’abord le salon.", 403);
     const player = room.players.find(p => p.token === playerToken);

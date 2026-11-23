@@ -61,7 +61,7 @@ export async function createHostRoom(replace = false): Promise<{ code: string; h
     const code = randomCode();
     if (previous && code === previous.room.code) continue;
     const room = newRoomState(code, MIX_PACK.questions, MIX_PACK.title);
-    if (previous) { room.shopEnabled = previous.room.shopEnabled; room.votingEnabled = previous.room.votingEnabled; }
+    if (previous) { room.shopEnabled = previous.room.shopEnabled; room.votingEnabled = previous.room.votingEnabled; room.phoneMedia = previous.room.phoneMedia; }
     try {
       const peer = await host(room, 1);
       serve(peer, room); live = { room, peer }; persist(room);

@@ -31,7 +31,7 @@ function ClipLayer({ media, current, play, token, onState }: { media: QuestionMe
  * - « viewer » (téléphone des joueurs) : photo affichée (touchez pour l’agrandir) ; vidéo et musique se lancent sur le téléphone avec un bouton.
  * Les vidéos sont lues sans commandes, sans titre ni cliquables : seule l'image est visible.
  */
-export default function QuestionMedia({ question, mode, autoplay, runKey, upcoming }: { question: MediaSource; mode: "stage" | "viewer"; autoplay: boolean; runKey: string; upcoming?: QuestionMedia | null }) {
+export default function QuestionMedia({ question, mode, autoplay, runKey, upcoming, phoneMedia = true }: { question: MediaSource; mode: "stage" | "viewer"; autoplay: boolean; runKey: string; upcoming?: QuestionMedia | null; /** Téléphones : autorise la lecture de la vidéo ou de la musique sur l’appareil du joueur. */ phoneMedia?: boolean }) {
   const media = question.media;
   const [manual, setManual] = useState(false);
   const [token, setToken] = useState(0);
@@ -58,6 +58,7 @@ export default function QuestionMedia({ question, mode, autoplay, runKey, upcomi
   }
   const isMusic = media.kind === "music";
   if (mode === "viewer") {
+    if (!phoneMedia) return <div className="media-card">{isMusic ? <Disc3 size={20} /> : <Video size={20} />}<span>{isMusic ? "Musique : écoutez l’écran de l’hôte" : "Vidéo : regardez l’écran de l’hôte"}</span></div>;
     if (!isClip(media)) return <div className="media-card media-card-error"><ImageOff size={18} /><span>Média indisponible sur le téléphone</span></div>;
     if (onPhone) return <QuestionMedia question={question} mode="stage" autoplay runKey={runKey} />;
     return <div className="media-card media-card-viewer">{isMusic ? <Disc3 size={20} /> : <Video size={20} />}<span>{isMusic ? "Extrait musical" : "Vidéo"}</span><button type="button" className="button button-soft media-replay" onClick={() => setOnPhone(true)}>{isMusic ? <Headphones size={15} /> : <Play size={15} />}{isMusic ? "Écouter sur mon téléphone" : "Voir sur mon téléphone"}</button></div>;

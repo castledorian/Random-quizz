@@ -183,6 +183,8 @@ export type RoomSnapshot = {
   shopEnabled: boolean; votingEnabled: boolean; eliminated: number[];
   /** Vrai si le maître du jeu a retiré ce joueur du salon. */
   kicked?: boolean;
+  /** Vidéos et musiques lisibles sur le téléphone des joueurs (réglage de l’hôte). */
+  phoneMedia?: boolean;
   /** Durée de la question en secondes (0 = sans limite). */
   timeLimit: number;
   /** Média de la question suivante, réservé à l’hôte : permet de le précharger. */
