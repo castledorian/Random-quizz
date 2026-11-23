@@ -1,7 +1,7 @@
 import { asset } from "@/lib/base";
 
 /**
- * Galerie d'affiches pour les quiz. Les images se déposent dans public/images/covers/<id>.png ;
+ * Galerie d'affiches pour les quiz. Les images se trouvent dans public/images/covers/<id>.svg (style pâte à modeler 3D) ;
  * tant qu'une image est absente, une vignette colorée avec son emoji la remplace.
  */
 export const COVERS = [
@@ -23,7 +23,7 @@ export const COVERS = [
   { id: "mystery", label: "Mystère", emoji: "🔮", from: "#9a63e8", to: "#1d1038" },
 ] as const;
 
-export const coverUrl = (id: string) => asset(`/images/covers/${id}.png`);
+export const coverUrl = (id: string) => asset(`/images/covers/${id}.svg`);
 export const isCoverId = (id: string) => COVERS.some(c => c.id === id);
 export function validCover(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 400000) return false;
