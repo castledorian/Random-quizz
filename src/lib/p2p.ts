@@ -52,14 +52,20 @@ async function host(room: RoomState, attempts: number): Promise<Peer> {
   }
 }
 
-export async function createHostRoom(): Promise<{ code: string; hostToken: string }> {
-  if (live) return { code: live.room.code, hostToken: live.room.hostToken };
+const randomCode = () => Array.from({ length: 4 }, () => CODE_ALPHABET[crypto.getRandomValues(new Uint32Array(1))[0] % CODE_ALPHABET.length]).join("");
+
+export async function createHostRoom(replace = false): Promise<{ code: string; hostToken: string }> {
+  if (live && !replace) return { code: live.room.code, hostToken: live.room.hostToken };
+  const previous = live;
   for (let attempt = 0; attempt < 6; attempt++) {
-    const code = Array.from({ length: 4 }, () => CODE_ALPHABET[crypto.getRandomValues(new Uint32Array(1))[0] % CODE_ALPHABET.length]).join("");
+    const code = randomCode();
+    if (previous && code === previous.room.code) continue;
     const room = newRoomState(code, MIX_PACK.questions, MIX_PACK.title);
+    if (previous) { room.shopEnabled = previous.room.shopEnabled; room.votingEnabled = previous.room.votingEnabled; }
     try {
       const peer = await host(room, 1);
       serve(peer, room); live = { room, peer }; persist(room);
+      if (previous) { previous.room.closed = true; setTimeout(() => previous.peer.destroy(), 90000); }
       return { code, hostToken: room.hostToken };
     } catch (error) {
       if ((error as PeerError).type === "unavailable-id") continue;
@@ -137,6 +143,11 @@ export async function roomsApi(method: "GET" | "POST", url: string, headers: Rec
   const code = (decodeURIComponent(parsed.pathname.split("/").filter(Boolean)[2] || "") || parsed.searchParams.get("code") || "").toUpperCase();
   if (!code) {
     if (method !== "POST") throw new ApiError("Indiquez le code du salon.");
+    let action: unknown; try { action = JSON.parse(body || "{}").action; } catch { /* Corps vide. */ }
+    if (action === "renew") {
+      if (!live || !headers["x-host-token"] || live.room.hostToken !== headers["x-host-token"]) throw new ApiError("Seul le maître du jeu peut changer le code.", 403);
+      return { status: 201, data: await createHostRoom(true) };
+    }
     return { status: 201, data: await createHostRoom() };
   }
   if (live?.room.code === code || (headers["x-host-token"] && !headers["x-player-token"])) {

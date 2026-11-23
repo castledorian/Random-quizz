@@ -20,6 +20,10 @@ export type RoomState = {
   shopEnabled: boolean; votingEnabled: boolean; players: EnginePlayer[]; answered: string[];
   /** Réponses de la partie en cours (clé : joueur:question). Absent dans les anciennes sauvegardes. */
   responses?: Record<string, { answer: Answer; right: boolean | null; points: number }>;
+  /** Profils retirés par l’hôte (ne peuvent pas revenir) et jetons des joueurs retirés. */
+  banned?: string[]; kicked?: string[];
+  /** Salon remplacé par un nouveau code : il refuse toute requête. */
+  closed?: boolean;
 };
 export type RpcRequest = { id: string; method: "GET" | "POST"; url: string; headers: Record<string, string>; body?: string };
 export type RpcResponse = { id: string; status: number; data: unknown; serverTime: number };
@@ -81,6 +85,7 @@ export function roomSnapshot(room: RoomState, hostToken?: string | null, playerT
     ...(room.hostToken === hostToken ? { upcomingMedia: room.questions[room.questionIndex + 1]?.media ?? null } : {}),
     ...(revealed && question ? { stats: buildStats(room, question) } : {}),
     ...(mine ? { mine } : {}),
+    ...(playerToken && room.kicked?.includes(playerToken) ? { kicked: true } : {}),
     eliminated: me?.hint && question && t === "choice" ? question.options.map((_, i) => i).filter(i => i !== question.correct).slice(0, 2) : [],
   };
 }
@@ -108,6 +113,7 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     }
     const profileId = isUuid(body.profileId) ? resolveProfileId(body.profileId) : uuid();
     const same = room.players.find(p => p.profileId === profileId);
+    if (room.banned?.includes(profileId)) throw new ApiError("Le maître du jeu vous a retiré de ce salon.", 403);
     if (same) return { result: { playerToken: same.token, playerId: same.id, profileId: same.profileId, name: same.name, avatar: same.avatar, code: room.code }, changed: false };
     if (room.status !== "lobby") throw new ApiError("La partie a déjà commencé. Demandez à l’hôte de rouvrir le salon.");
     if (room.players.length >= MAX_PLAYERS) throw new ApiError(`Le salon est complet : ${MAX_PLAYERS} joueurs maximum.`);
@@ -163,6 +169,8 @@ function applyAction(room: RoomState, action: unknown, body: Record<string, unkn
     if (player) { if (body.field === "coins") player.coins = Math.max(0, player.coins + amount); else player.score = Math.max(0, player.score + amount); }
   } else if (action === "kick") {
     if (!isUuid(body.playerId)) throw new ApiError("Joueur invalide.");
+    const target = room.players.find(p => p.id === body.playerId);
+    if (target) { (room.banned ??= []).push(target.profileId); (room.kicked ??= []).push(target.token); }
     room.players = room.players.filter(p => p.id !== body.playerId);
   } else if (action === "settings") {
     if (typeof body.shopEnabled === "boolean") room.shopEnabled = body.shopEnabled;
@@ -217,6 +225,7 @@ export function handleRoomRequest(room: RoomState, req: RpcRequest, persist: (ro
     if (!code) throw new ApiError("Indiquez le code du salon.");
     if (!/^[A-Z0-9]{4,6}$/.test(code)) throw new ApiError("Ce code de salon n’est pas valide.", 404);
     if (code !== room.code) throw new ApiError("Ce salon est introuvable. Vérifiez votre code.", 404);
+    if (room.closed) throw new ApiError("Ce salon a été fermé : le maître du jeu a généré un nouveau code. Demandez-le lui.", 410);
     const hostToken = req.headers["x-host-token"] ?? null;
     const playerToken = req.headers["x-player-token"] ?? null;
     const omitMediaFor = req.headers["x-media-have"] ?? null;

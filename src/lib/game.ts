@@ -181,6 +181,8 @@ export type RoomSnapshot = {
   mine?: { right: boolean | null; points: number; answer: Answer };
   startedAt: string | null; remainingSeconds: number; players: RoomPlayer[]; answerCount: number;
   shopEnabled: boolean; votingEnabled: boolean; eliminated: number[];
+  /** Vrai si le maître du jeu a retiré ce joueur du salon. */
+  kicked?: boolean;
   /** Durée de la question en secondes (0 = sans limite). */
   timeLimit: number;
   /** Média de la question suivante, réservé à l’hôte : permet de le précharger. */

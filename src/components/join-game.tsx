@@ -52,9 +52,14 @@ export default function JoinGame() {
       try {
         const snapshot = await api<RoomSnapshot>(`/api/rooms?code=${session.code}`, { headers: { "x-player-token": session.playerToken } });
         if (disposed) return;
+        if (snapshot.kicked) { try { localStorage.removeItem(`quizclub-player-${session.code}`); } catch {} setSession(null); setRoom(null); setError("Le maître du jeu vous a retiré du salon."); return; }
         if (!snapshot.players.some(p => p.id === session.playerId)) { setSession(null); setError("Votre place a été libérée. Vous pouvez rejoindre à nouveau le salon."); return; }
         setRoom(snapshot); setConnected(true);
-      } catch { if (!disposed) setConnected(false); }
+      } catch (e) {
+        if (disposed) return;
+        if (e instanceof Error && e.message.includes("a été fermé")) { try { localStorage.removeItem(`quizclub-player-${session.code}`); } catch {} setSession(null); setRoom(null); setError(e.message); return; }
+        setConnected(false);
+      }
       finally { pending = false; }
     };
     void poll(); const timer = window.setInterval(poll, 1000);

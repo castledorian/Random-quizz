@@ -19,6 +19,17 @@ export function useHostRoom() {
       setSession(result); setConnection("online");
     } catch (e) { setConnection("offline"); setError(e instanceof Error ? e.message : "Impossible d’ouvrir le salon."); }
   }, []);
+  /** Ferme le salon actuel et en ouvre un nouveau, avec un autre code et un autre QR code. */
+  const renew = useCallback(async () => {
+    if (!session) return false;
+    setBusy(true); setConnection("connecting");
+    try {
+      const result = await api<HostSession>("/api/rooms", { method: "POST", headers: { "x-host-token": session.hostToken }, body: JSON.stringify({ action: "renew" }) });
+      try { localStorage.setItem(KEY, JSON.stringify(result)); } catch { /* Storage is optional. */ }
+      setRoom(null); setSession(result); setConnection("online"); return true;
+    } catch (e) { setConnection("online"); setError(e instanceof Error ? e.message : "Impossible de générer un nouveau code."); return false; }
+    finally { setBusy(false); }
+  }, [session]);
   useEffect(() => {
     let disposed = false;
     const init = async () => {
@@ -60,5 +71,5 @@ export function useHostRoom() {
     finally { setBusy(false); }
   }, [session]);
   const clearError = useCallback(() => setError(""), []);
-  return { session, room, connection, busy, error, clearError, create, command };
+  return { session, room, connection, busy, error, clearError, create, renew, command };
 }
