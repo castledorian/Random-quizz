@@ -22,7 +22,7 @@ function ClipLayer({ media, current, play, token, onState }: { media: QuestionMe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   useEffect(() => { if (current && play) driver.current?.start(); else driver.current?.stop(); }, [current, play, token]);
-  return <div ref={host} className={`clip-layer ${current ? "is-current" : ""}`} aria-hidden="true" />;
+  return <div ref={host} className={`clip-layer ${current ? "is-current" : ""} ${media.kind === "video" && clipSource(media.url)?.type === "youtube" ? "yt-crop" : ""}`} aria-hidden="true" />;
 }
 
 /**

@@ -29,6 +29,9 @@ export type QuizPack = {
   icon: string;
   questions: Question[];
   custom?: boolean;
+  /** Affiche choisie : « cover:<id> », image importée (data-URL) ou lien. */
+  cover?: string;
+  coverId?: string;
 };
 
 const popQuestions: Question[] = [

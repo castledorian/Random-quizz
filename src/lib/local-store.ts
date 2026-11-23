@@ -1,12 +1,12 @@
-import { asset } from "@/lib/base";
+import { resolveCover, validCover } from "@/lib/covers";
 import { validateQuestions, type HighScore, type QuizPack } from "@/lib/game";
 import { ApiError } from "@/lib/api-error";
 
 const PACKS_KEY = "quizclub-custom-packs-v1";
 const SCORES_KEY = "quizclub-club-scores-v1";
 
-type StoredPack = Pick<QuizPack, "id" | "title" | "description" | "questions">;
-const decorate = (p: StoredPack): QuizPack => ({ ...p, image: asset("/images/quiz-universe.svg"), color: "#b99aef", icon: "sparkles", custom: true });
+type StoredPack = Pick<QuizPack, "id" | "title" | "description" | "questions" | "cover">;
+const decorate = (p: StoredPack): QuizPack => ({ ...p, ...resolveCover(p.cover), color: "#b99aef", icon: "sparkles", custom: true });
 function read<T>(key: string): T[] {
   try { const value = JSON.parse(localStorage.getItem(key) || "[]"); return Array.isArray(value) ? value : []; } catch { return []; }
 }
@@ -24,6 +24,7 @@ function cleanPack(body: Record<string, unknown>, keepId?: string): StoredPack {
     id: keepId ?? crypto.randomUUID(), title: title.trim(),
     description: typeof body.description === "string" && body.description.trim() ? body.description.trim().slice(0, 200) : "Créé avec amour, joué entre amis.",
     questions: body.questions,
+    ...(body.cover !== undefined && body.cover !== null && body.cover !== "" ? (validCover(body.cover) ? { cover: body.cover } : (() => { throw new ApiError("L’affiche du quiz n’est pas valide."); })()) : {}),
   };
 }
 /** Crée un quiz, ou le met à jour sur place si `id` correspond à l'un de vos quiz. */
@@ -40,7 +41,7 @@ export function deleteCustomPack(id: unknown) {
 }
 export const BACKUP_FORMAT = "random-quizz-backup";
 export function exportBackup() {
-  return { app: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(), packs: read<StoredPack>(PACKS_KEY).map(({ id, title, description, questions }) => ({ id, title, description, questions })) };
+  return { app: BACKUP_FORMAT, version: 1, exportedAt: new Date().toISOString(), packs: read<StoredPack>(PACKS_KEY).map(({ id, title, description, questions, cover }) => ({ id, title, description, questions, cover })) };
 }
 /** Fusionne une sauvegarde : un quiz de même identifiant est remplacé, les autres sont ajoutés. */
 export function importBackup(body: Record<string, unknown>): QuizPack[] {

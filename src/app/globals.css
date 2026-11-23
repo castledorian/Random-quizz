@@ -170,3 +170,18 @@ html:has(.player-page),html:has(.player-page) body{overflow:hidden;overscroll-be
 .timer-presets label input{width:72px;padding:8px 10px;text-align:center}
 .media-fade-toggle{display:flex;align-items:center;gap:10px;font-size:14px;color:#cdb8e0;cursor:pointer}
 .media-fade-toggle input{width:18px;height:18px;accent-color:#c6f36b}
+
+/* ───── Affiches de quiz ───── */
+.cover-fallback{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:44px}
+.start-pack-preview>.cover-fallback{height:64px;width:85px;border-radius:5px;font-size:28px;flex:none}
+.cover-picker{display:flex;flex-direction:column;gap:10px;margin:0 0 24px}
+.cover-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px}
+.cover-tile{position:relative;aspect-ratio:16/10;border-radius:12px;overflow:hidden;border:2px solid #b69ae81f;background:#1d1727;padding:0;display:block;cursor:pointer}
+.cover-tile.selected{border-color:var(--lime);box-shadow:0 0 0 3px #c6f36b22}
+.cover-tile>img,.cover-tile>.cover-fallback{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cover-tile>.cover-fallback{font-size:34px}
+.cover-tile>small{position:absolute;left:0;right:0;bottom:0;padding:14px 8px 6px;font-size:12px;font-weight:600;color:#fff;background:linear-gradient(transparent,#000000b0);text-align:left}
+.cover-upload>span{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#bda9cc}
+.cover-reset{align-self:flex-start;font-size:13px}
+/* Vidéo YouTube : on cadre pour que la barre de titre du lecteur reste hors de l'image */
+.clip-layer.yt-crop iframe{position:absolute;left:0;top:-18%;width:100%;height:118%}
